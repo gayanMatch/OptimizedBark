@@ -136,7 +136,7 @@ class TransformerBlocks(nn.Module):
         for i, (block, past_layer_kv) in enumerate(zip(self.layers, past_kv)):
             if i == 12:
                 break
-            x, kv = block(x, past_kv=past_layer_kv, use_cache=True)
+            x, kv = block(x, past_kv=past_layer_kv, use_cache=use_cache)
             if use_cache:
                 new_kv = new_kv + (kv,)
         return x, new_kv
@@ -289,7 +289,6 @@ class GPT_COARSE(nn.Module):
             assert position_ids.shape == (1, t)
         else:
             print("############################### OH NO ##########################################################")
-
         pos_emb = self.transformer.wpe(position_ids)  # position embeddings of shape (1, t, n_embd)
 
         x = self.transformer.drop(tok_emb + pos_emb)
@@ -299,9 +298,9 @@ class GPT_COARSE(nn.Module):
         #     torch.jit.save(torch.jit.trace(self.transformer_h, example_inputs=(x, past_kv)), 'coarse_transformer_h')
         #     raise "Finished"
         if past_kv[0] is None or self.transformer_h_traced is None:
-            x, new_kv = self.transformer_h(x, past_kv)
+            x, new_kv = self.transformer_h(x, past_kv, use_cache=use_cache)
         else:
-            x, new_kv = self.transformer_h_traced(x, past_kv)
+            x, new_kv = self.transformer_h_traced(x, past_kv, use_cache=use_cache)
         x = self.transformer.ln_f(x)
 
         # inference-time mini-optimization: only forward the lm_head on the very last position

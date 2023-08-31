@@ -4,7 +4,7 @@ import numpy as np
 import time
 import soundfile as sf
 from .generation import codec_decode, generate_coarse, generate_fine, generate_text_semantic
-from .semantic_syn import generate_text_semantic_finetune
+# from .semantic_syn import generate_text_semantic_finetune
 from vocos import Vocos
 import torch
 
@@ -30,12 +30,12 @@ def text_to_semantic(
     Returns:
         numpy semantic array to be fed into `semantic_to_waveform`
     """
-    x_semantic = generate_text_semantic_finetune(
+    x_semantic = generate_text_semantic(
         text,
         history_prompt=history_prompt,
         temp=temp,
         silent=False,
-        use_kv_caching=False
+        use_kv_caching=True
     )
     return x_semantic
 
@@ -63,21 +63,33 @@ def semantic_to_waveform(
     """
     last_audio = None
     index = initial_index
+    last_fine_tokens = None
+    total_audios = []
     print("Symantic Generated: ", time.time())
-    for coarse_tokens in generate_coarse(semantic_tokens, history_prompt=history_prompt, temp=temp, silent=silent,
-                                         use_kv_caching=True):
-        fine_tokens = generate_fine(
-            coarse_tokens,
-            history_prompt=history_prompt,
-            temp=0.5,
-        )
-        
+    for i, coarse_tokens in enumerate(generate_coarse(semantic_tokens, history_prompt=history_prompt, temp=temp, silent=silent,
+                                         use_kv_caching=True)):
+        s = time.time()
+        if i < 300:
+            fine_tokens = generate_fine(
+                coarse_tokens,
+                history_prompt=history_prompt,
+                temp=0.5,
+            )
+            last_fine_tokens = fine_tokens
+        else:
+            additional_fine_tokens = generate_fine(
+                coarse_tokens[:, 150 * (i - 2):],
+                history_prompt=history_prompt,
+                temp=0.5,
+            )[:, 300:]
+            fine_tokens = np.concatenate([last_fine_tokens, additional_fine_tokens], axis=1)
+        last_fine_tokens = fine_tokens
+
         # audio_arr = codec_decode(fine_tokens)
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
         features = vocos.codes_to_features(audio_tokens_torch)
         audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
-        
-        print(audio_arr.shape)
+
         # plt.plot(audio_arr)
         if last_audio is None:
             last_audio = audio_arr
@@ -87,9 +99,11 @@ def semantic_to_waveform(
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
             last_audio = audio_arr
-        sf.write(f"{directory}/audio_{index}.wav", audio_arr[start:], 24000)
+        total_audios.append(audio_arr[start:])
+        sf.write(f"{directory}/audio_{index}.mp3", audio_arr[start:], 24000)
+        print(f"Generated audio_{index}.mp3", time.time())
         index += 1
-    # plt.show()
+    sf.write(f"{directory}/audio.mp3", np.concatenate(total_audios), 24000)
     if output_full:
         full_generation = {
             "semantic_prompt": semantic_tokens,

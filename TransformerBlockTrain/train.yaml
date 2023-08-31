@@ -33,7 +33,7 @@ semantic:
     dropout: 0.1
     input_vocab_size: 129600
     n_embd: 768
-    n_head: 12
+    n_head: 24
     n_layer: 6
     output_vocab_size: 10048
 

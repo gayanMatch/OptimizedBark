@@ -30,9 +30,9 @@ Hello, I'm really excited about optimizing bark with Air AI.
     #     synthesize(clip, directory=directory)
     #     # synthesize(test_clip, directory=directory)
     #     clip = input("Type your text here: \n")
-    # synthesize(clip, directory=directory)
+    synthesize(clip, directory=directory)
     text = "Ok. Perfect. Well the reason I’m calling you is I’m actually a manager over here on Scale 13's client success team on a recorded line,"
-    synthesize(text, directory=directory)
+    # synthesize(text, directory=directory)
 
     # # text = "Yeah. So it uh, it looks like you opted into one of our ads looking for information on how to scale your business using AI."
     # synthesize(text, directory=directory, index_=1)

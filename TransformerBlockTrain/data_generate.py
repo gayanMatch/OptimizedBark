@@ -247,8 +247,8 @@ if __name__ == '__main__':
         'train': 'train.txt'
     }
     generate_num = {
-        'val': 50,
-        'train': 500
+        'val': 1000,
+        'train': 10000
     }
 
     mode = sys.argv[1]
@@ -261,9 +261,9 @@ if __name__ == '__main__':
     for i, line in enumerate(data):
         s = time.time()
         line = line.strip()
-        # voice = random.choice(ALLOWED_PROMPTS)
-        for voice in ALLOWED_PROMPTS:
-            _, index = generate_text_semantic(line, history_prompt=voice, temp=0.7, silent=False, use_kv_caching=False,
-                                              index=train_data_index)
-            train_data_index += 1
+        voice = random.choice(ALLOWED_PROMPTS)
+        # for voice in ALLOWED_PROMPTS:
+        _, index = generate_text_semantic(line, history_prompt=voice, temp=0.7, silent=False, use_kv_caching=False,
+                                            index=train_data_index)
+        train_data_index += 1
         print(time.time() - s, i)

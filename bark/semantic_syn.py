@@ -38,7 +38,7 @@ for _, lang in SUPPORTED_LANGS:
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 gpt_config = GPTConfig(**yaml.safe_load(open('TransformerBlockTrain/block_config.yaml')))
 model = GPT(gpt_config)
-state_dict = torch.load('semantic_train/lightning_logs/version_4/checkpoints/epoch=1-step=30000.ckpt')['state_dict']
+state_dict = torch.load('semantic_train/lightning_logs/version_6/checkpoints/epoch=2-step=100000.ckpt')['state_dict']
 for k, v in list(state_dict.items()):
     weights = state_dict.pop(k)
     state_dict[k.replace('model.', '')] = weights

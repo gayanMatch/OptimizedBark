@@ -8,11 +8,11 @@ from bark import generate_audio, SAMPLE_RATE
 def synthesize(text_prompt, directory="static", index_=0):
     start_time = time.time()
     index = index_
-    # text = text_prompt.replace("\n", " ").strip()
-    # sentences = nltk.sent_tokenize(text)
-    # for sentence in sentences:
-    #     index = generate_audio(sentence, history_prompt="en_fiery", directory=directory, initial_index=index, silent=True)
-    generate_audio(text_prompt, history_prompt="en_fiery", directory=directory, initial_index=index, silent=True)
+    text = text_prompt.replace("\n", " ").strip()
+    sentences = nltk.sent_tokenize(text)
+    for sentence in sentences:
+        index = generate_audio(sentence, history_prompt="en_fiery", directory=directory, initial_index=index, silent=True)
+    # generate_audio(text_prompt, history_prompt="en_fiery", directory=directory, initial_index=index, silent=True)
     end_time = time.time()
     duration = end_time - start_time
     print(f"Time for syntesize: {duration}")

@@ -3,7 +3,7 @@ import sys
 import shutil
 import time
 import numpy as np
-from flask import Flask, render_template, Response, send_file, send_from_directory, request, jsonify
+from flask import Flask, render_template, Response, send_file, send_from_directory, request, jsonify, redirect, stream_with_context
 import sys
 # import librosa
 # Tornado web server
@@ -38,20 +38,26 @@ def show_entries():
 # Route to synthesize
 @app.route('/synthesize', methods=["POST"])
 def synthesize():
-    print("Requst Recieved: ", time.time())
     text = request.form['text']
-    print("Started Generating: ", text)
+    print(text)
     directory_path = 'bark/static'
     shutil.rmtree(directory_path)
     os.mkdir(directory_path)
     synthesize_thread.synthesize_queue.append(text)
-    time.sleep(1)
-    while not os.path.exists(f'{directory_path}/audio_0.wav'):
+    while not os.path.exists(f'{directory_path}/audio_0.mp3'):
         time.sleep(0.01)
-    general_Data = {
-        'title': 'Audio Player'
-    }
-    return render_template('audio_play.html', **general_Data)
+    return redirect("http://138.2.225.7:4000/file")
+
+
+@app.route('/file')
+def file_stream():
+    def generate():
+        with open("bark/audio.mp3", "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):  # 4096 bytes chunk size
+                print('xx')
+                yield chunk
+                time.sleep(0.1)
+    return Response(generate(), mimetype='audio/mpeg')
 
 
 @app.route('/audio/<path:filename>')
@@ -72,6 +78,36 @@ def serve_audio(filename):
     #     return Response(generate(), mimetype="audio/wav")
     # else:
     #     return send_from_directory('static', filename)
+
+def stream_file(file_name, chunk_size=1024):
+    with open(file_name, 'rb') as file:
+        while True:
+            chunk = file.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
+
+# @app.route('/stream_file')
+# def serve_sse():
+#     def event_stream():
+#         i = 0
+#         chunk_size = 1024
+#         directory_path = 'bark/static'
+#         while True:
+#             path = f'{directory_path}/audio_{i}.wav'
+#             print(path)
+#             if os.path.exists(path):
+#                 i += 1
+#                 for chunk in stream_file(path):
+#                     yield 'data: %s\n\n' % chunk
+#             elif synthesize_thread.isWorking:
+#                 while not os.path.exists(path):
+#                     time.sleep(0.01)
+#             else:
+#                 i += 1
+#                 break
+#     return Response(event_stream(), mimetype="text/event-stream")
+
 
 # launch a Tornado server with HTTPServer.
 if __name__ == "__main__":

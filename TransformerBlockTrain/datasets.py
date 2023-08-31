@@ -3,7 +3,7 @@ import glob
 import copy
 import pickle
 import random
-import tqdm
+from tqdm import tqdm
 import numpy as np
 import torch
 
@@ -29,7 +29,7 @@ class BarkDataset(Dataset):
         #     self.origin_data_files.append(files)
         #     for i in range(len(files) // batch_size):
         #         self.indices.append(length - START)
-        #
+        
         # pickle.dump((self.indices, self.origin_data_files, self.data_indices), open(f'dataset_{path.split("/")[-1]}.pkl', 'wb'))
 
     def __len__(self):
