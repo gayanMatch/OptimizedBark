@@ -11,11 +11,17 @@ from scipy.special import softmax
 import torch
 import torch.nn.functional as F
 import tqdm
+import yaml
 from transformers import BertTokenizer
 from huggingface_hub import hf_hub_download
 
 from .model import GPTConfig, GPT, GPT_COARSE
 from .model_fine import FineGPT, FineGPTConfig
+from NNDF.networks import NetworkMetadata, Precision
+from GPT2.GPT2ModelConfig import GPT2Metadata
+from GPT2.export import GPT2TRTEngine
+from GPT2.trt import GPT2TRTDecoder
+
 
 # from accelerate import Accelerator
 # accelerator = Accelerator(mixed_precision = "fp8")
@@ -26,7 +32,7 @@ if (
         hasattr(torch.cuda, "is_bf16_supported") and
         torch.cuda.is_bf16_supported()
 ):
-    autocast = funcy.partial(torch.cuda.amp.autocast, dtype=torch.bfloat16)
+    autocast = funcy.partial(torch.cuda.amp.autocast, dtype=torch.float16)
 else:
     @contextlib.contextmanager
     def autocast():
@@ -48,6 +54,9 @@ CODEBOOK_SIZE = 1024
 N_COARSE_CODEBOOKS = 2
 N_FINE_CODEBOOKS = 8
 COARSE_RATE_HZ = 75
+
+COARSE_SEMANTIC_PAD_TOKEN = 12_048
+COARSE_INFER_TOKEN = 12_050
 
 SAMPLE_RATE = 24_000
 
@@ -214,7 +223,7 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
     if "input_vocab_size" not in model_args:
         model_args["input_vocab_size"] = model_args["vocab_size"]
         model_args["output_vocab_size"] = model_args["vocab_size"]
-        del model_args["vocab_size"]
+        # del model_args["vocab_size"]
     gptconf = ConfigClass(**checkpoint["model_args"])
     model = ModelClass(gptconf)
     state_dict = checkpoint["model"]
@@ -238,10 +247,6 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
     if len(missing_keys) != 0:
         raise ValueError(f"missing keys: {missing_keys}")
     model.load_state_dict(state_dict, strict=False)
-    if model_type == 'text' and os.path.exists('text_transformer_h.pt'):
-        model.transformer_h_traced = torch.jit.load('text_transformer_h.pt')
-    if model_type == 'coarse' and os.path.exists('coarse_transformer_h.pt'):
-        model.transformer_h_traced = torch.jit.load('coarse_transformer_h.pt')
     n_params = model.get_num_params()
     val_loss = checkpoint["best_val_loss"].item()
     logger.info(f"model loaded: {round(n_params / 1e6, 1)}M params, {round(val_loss, 3)} loss")
@@ -251,11 +256,31 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
     _clear_cuda_cache()
     if model_type == "text":
         tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
+        total_config = yaml.safe_load(open('semantic_config.yaml', 'rb'))
+        kv_metadata = NetworkMetadata(variant=total_config['GPT2_VARIANT'], precision=Precision(fp16=total_config['fp16']),
+                              other=GPT2Metadata(kv_cache=total_config['use_cache']))
+        kv_gpt2_engine = GPT2TRTEngine(total_config['kv_engine_path'], kv_metadata)
+        kv_gpt2_trt = GPT2TRTDecoder(
+            kv_gpt2_engine, kv_metadata, gptconf, batch_size=total_config['batch_size']
+        )
         return {
             "model": model,
             "tokenizer": tokenizer,
+            "trt_model": kv_gpt2_trt,
         }
-
+    if model_type == "coarse":
+        gptconf.vocab_size = 2096
+        total_config = yaml.safe_load(open('coarse_config.yaml', 'rb'))
+        kv_metadata = NetworkMetadata(variant=total_config['GPT2_VARIANT'], precision=Precision(fp16=total_config['fp16']),
+                              other=GPT2Metadata(kv_cache=total_config['use_cache']))
+        kv_gpt2_engine = GPT2TRTEngine(total_config['kv_engine_path'], kv_metadata)
+        kv_gpt2_trt = GPT2TRTDecoder(
+            kv_gpt2_engine, kv_metadata, gptconf, batch_size=total_config['batch_size']
+        )
+        return {
+            "model": model,
+            "trt_model": kv_gpt2_trt,
+        }
     # model = accelerator.prepare_model(model)
     return model
 
@@ -286,6 +311,8 @@ def load_model(use_gpu=True, use_small=False, force_reload=False, model_type="te
         model = _load_model_f(ckpt_path, device)
         models[model_key] = model
     if model_type == "text":
+        models[model_key]["model"].to(device)
+    elif model_type == "coarse":
         models[model_key]["model"].to(device)
     else:
         models[model_key].to(device)
@@ -421,6 +448,7 @@ def generate_text_semantic(
         preload_models()
     model_container = models["text"]
     model = model_container["model"]
+    trt_model = model_container["trt_model"]
     tokenizer = model_container["tokenizer"]
     encoded_text = np.array(_tokenize(tokenizer, text)) + TEXT_ENCODING_OFFSET
     if OFFLOAD_CPU:
@@ -465,13 +493,13 @@ def generate_text_semantic(
         for n in range(n_tot_steps):
             if use_kv_caching and kv_cache is not None:
                 x_input = x[:, [-1]]
+                logits = trt_model(input_ids=x_input).logits
+                # logits, kv_cache = model(x_input, merge_context=True, use_cache=use_kv_caching, past_kv=kv_cache)
             else:
                 x_input = x
-            s = time.time()
-            logits, kv_cache = model(
-                x_input, merge_context=True, use_cache=use_kv_caching, past_kv=kv_cache
-            )
-            print(time.time() - s)
+                logits, kv_cache = model(x_input, merge_context=True, use_cache=use_kv_caching, past_kv=kv_cache)
+                trt_model.load_past_key_values(kv_cache)
+                trt_model.context_mode = False
             relevant_logits = logits[0, 0, :SEMANTIC_VOCAB_SIZE]
             if allow_early_stop:
                 relevant_logits = torch.hstack(
@@ -544,9 +572,6 @@ def _flatten_codebooks(arr, offset_size=CODEBOOK_SIZE):
     return flat_arr
 
 
-COARSE_SEMANTIC_PAD_TOKEN = 12_048
-COARSE_INFER_TOKEN = 12_050
-
 
 def generate_coarse(
         x_semantic,
@@ -614,7 +639,9 @@ def generate_coarse(
     global models_devices
     if "coarse" not in models:
         preload_models()
-    model = models["coarse"]
+    model_container = models["coarse"]
+    model = model_container["model"]
+    trt_model = model_container["trt_model"]
     # model.cuda().half()
     if OFFLOAD_CPU:
         model.to(models_devices["coarse"])
@@ -662,10 +689,13 @@ def generate_coarse(
 
                 if use_kv_caching and kv_cache is not None:
                     x_input = x_in[:, [-1]]
+                    logits = trt_model(input_ids=x_input).logits
+                    # logits, kv_cache = model(x_input, use_cache=use_kv_caching, past_kv=kv_cache)
                 else:
                     x_input = x_in
-                logits, kv_cache = model(x_input, use_cache=use_kv_caching, past_kv=kv_cache)
-                print(kv_cache[0][0].shape)
+                    logits, kv_cache = model(x_input, use_cache=use_kv_caching, past_kv=kv_cache)
+                    trt_model.load_past_key_values(kv_cache)
+                    trt_model.context_mode = False
                 logit_start_idx = (
                         SEMANTIC_VOCAB_SIZE + (1 - int(is_major_step)) * CODEBOOK_SIZE
                 )
@@ -677,13 +707,14 @@ def generate_coarse(
                 probs = F.softmax(relevant_logits / temp, dim=-1)
                 # multinomial bugged on mps: shuttle to cpu if necessary
                 item_next = torch.multinomial(probs, num_samples=1)
+                # item_next = torch.argmax(probs).unsqueeze(0)
                 item_next += logit_start_idx
                 x_coarse_in = torch.cat((x_coarse_in, item_next[None]), dim=1)
                 x_in = torch.cat((x_in, item_next[None]), dim=1)
                 del logits, relevant_logits, probs, item_next
                 n_step += 1
             del x_in
-            if i_win % 5 == 4 and i_win > 200:
+            if i_win % 5 == 4 and i_win > 2:
                 gen_coarse_arr = x_coarse_in.detach().cpu().numpy().squeeze()[len(x_coarse_history):]
                 gen_coarse_audio_arr = gen_coarse_arr.reshape(-1, N_COARSE_CODEBOOKS).T - SEMANTIC_VOCAB_SIZE
                 for n in range(1, N_COARSE_CODEBOOKS):

@@ -5,6 +5,8 @@ import time
 import soundfile as sf
 from .generation import codec_decode, generate_coarse, generate_fine, generate_text_semantic
 # from .semantic_syn import generate_text_semantic_finetune
+
+
 from vocos import Vocos
 import torch
 
