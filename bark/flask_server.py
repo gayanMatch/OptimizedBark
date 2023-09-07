@@ -1,10 +1,12 @@
 import os
+import glob
 import sys
 import shutil
 import time
 import numpy as np
-from flask import Flask, render_template, Response, send_file, send_from_directory, request, jsonify, redirect, stream_with_context
+from flask import Flask, render_template, Response, send_file, send_from_directory, request, jsonify, redirect, stream_with_context, flash
 import sys
+from werkzeug.utils import secure_filename
 # import librosa
 # Tornado web server
 from tornado.wsgi import WSGIContainer
@@ -23,16 +25,43 @@ formatter = logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 root.addHandler(ch)
-synthesize_thread = SynthesizeThread()
+DEFAULT_VOICE = 'en_fiery.npz'
+synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
 synthesize_thread.start()
+
+
 # Initialize Flask.
 app = Flask(__name__)
-
-
+UPLOAD_FOLDER = 'bark/assets/prompts'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['SECRET_KEY'] = 'supersecretkey'
 # Route to render GUI
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def show_entries():
-    return render_template('index.html')
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file part')
+            return redirect(request.url)
+        file = request.files['file']
+        if file.filename == '':
+            flash('No selected file')
+            return redirect(request.url)
+
+        if file:
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            flash('File uploaded successfully')
+            return redirect(request.url)
+
+    uploaded_files = list(glob.glob(f"{app.config['UPLOAD_FOLDER']}/*.npz")) + list(glob.glob(f"{app.config['UPLOAD_FOLDER']}/v2/*.npz"))
+    uploaded_files.sort()
+    uploaded_files = [os.path.relpath(file, app.config['UPLOAD_FOLDER']) for file in uploaded_files]
+    selected_file = DEFAULT_VOICE
+    if request.args.get('selected_file'):
+        selected_file = request.args.get('selected_file')
+    synthesize_thread.voice = selected_file[:-4]
+    print(synthesize_thread.voice)
+    return render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
 
 # Route to synthesize

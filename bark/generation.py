@@ -76,7 +76,7 @@ SUPPORTED_LANGS = [
     ("Chinese", "zh"),
 ]
 
-ALLOWED_PROMPTS = {"announcer", "en_fiery"}
+ALLOWED_PROMPTS = {"announcer", "en_fiery", "dude_from_1_10_to_1_18_base", "final_Either_way"}
 for _, lang in SUPPORTED_LANGS:
     for prefix in ("", f"v2{os.path.sep}"):
         for n in range(10):
@@ -94,7 +94,7 @@ def _cast_bool_env_var(s):
     return s.lower() in ('true', '1', 't')
 
 
-USE_SMALL_MODELS = _cast_bool_env_var(os.environ.get("SUNO_USE_SMALL_MODELS", "True"))
+USE_SMALL_MODELS = _cast_bool_env_var(os.environ.get("SUNO_USE_SMALL_MODELS", "False"))
 GLOBAL_ENABLE_MPS = _cast_bool_env_var(os.environ.get("SUNO_ENABLE_MPS", "False"))
 OFFLOAD_CPU = _cast_bool_env_var(os.environ.get("SUNO_OFFLOAD_CPU", "False"))
 
@@ -213,8 +213,6 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
         logger.info(f"{model_type} model not found, downloading into `{CACHE_DIR}`.")
         _download(model_info["repo_id"], model_info["file_name"])
     checkpoint = torch.load(ckpt_path, map_location=device)
-    if model_type == 'text':
-        print()
     if model_type == "coarse":
         checkpoint["model"]['_orig_mod.lm_head.weight'] = checkpoint["model"]['_orig_mod.lm_head.weight'][
                                                           SEMANTIC_VOCAB_SIZE:, :]
@@ -341,9 +339,9 @@ def load_codec_model(use_gpu=True, force_reload=False):
 
 def preload_models(
         text_use_gpu=True,
-        text_use_small=False,
+        text_use_small=True,
         coarse_use_gpu=True,
-        coarse_use_small=False,
+        coarse_use_small=True,
         fine_use_gpu=True,
         fine_use_small=False,
         codec_use_gpu=True,
@@ -398,8 +396,8 @@ def _load_history_prompt(history_prompt_input):
     elif isinstance(history_prompt_input, str):
         # make sure this works on non-ubuntu
         history_prompt_input = os.path.join(*history_prompt_input.split("/"))
-        if history_prompt_input not in ALLOWED_PROMPTS:
-            raise ValueError("history prompt not found")
+        # if history_prompt_input not in ALLOWED_PROMPTS:
+        #     raise ValueError("history prompt not found")
         history_prompt = np.load(
             os.path.join(CUR_PATH, "assets", "prompts", f"{history_prompt_input}.npz")
         )
@@ -704,6 +702,22 @@ def generate_coarse(
                 )
                 relevant_logits = logits[0, 0,
                                   logit_start_idx - SEMANTIC_VOCAB_SIZE:logit_end_idx - SEMANTIC_VOCAB_SIZE]
+                if top_p is not None:
+                    # faster to convert to numpy
+                    original_device = relevant_logits.device
+                    relevant_logits = relevant_logits.detach().cpu().type(torch.float32).numpy()
+                    sorted_indices = np.argsort(relevant_logits)[::-1]
+                    sorted_logits = relevant_logits[sorted_indices]
+                    cumulative_probs = np.cumsum(softmax(sorted_logits))
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    sorted_indices_to_remove[1:] = sorted_indices_to_remove[:-1].copy()
+                    sorted_indices_to_remove[0] = False
+                    relevant_logits[sorted_indices[sorted_indices_to_remove]] = -np.inf
+                    relevant_logits = torch.from_numpy(relevant_logits)
+                    relevant_logits = relevant_logits.to(original_device)
+                if top_k is not None:
+                    v, _ = torch.topk(relevant_logits, min(top_k, relevant_logits.size(-1)))
+                    relevant_logits[relevant_logits < v[-1]] = -float("Inf")
                 probs = F.softmax(relevant_logits / temp, dim=-1)
                 # multinomial bugged on mps: shuttle to cpu if necessary
                 item_next = torch.multinomial(probs, num_samples=1)
@@ -714,7 +728,7 @@ def generate_coarse(
                 del logits, relevant_logits, probs, item_next
                 n_step += 1
             del x_in
-            if i_win % 5 == 4 and i_win > 2:
+            if i_win % 5 == 4 and i_win > 200:
                 gen_coarse_arr = x_coarse_in.detach().cpu().numpy().squeeze()[len(x_coarse_history):]
                 gen_coarse_audio_arr = gen_coarse_arr.reshape(-1, N_COARSE_CODEBOOKS).T - SEMANTIC_VOCAB_SIZE
                 for n in range(1, N_COARSE_CODEBOOKS):

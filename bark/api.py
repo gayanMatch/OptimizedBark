@@ -36,7 +36,7 @@ def text_to_semantic(
         text,
         history_prompt=history_prompt,
         temp=temp,
-        silent=False,
+        silent=True,
         use_kv_caching=True
     )
     return x_semantic
@@ -71,7 +71,9 @@ def semantic_to_waveform(
     for i, coarse_tokens in enumerate(generate_coarse(semantic_tokens, history_prompt=history_prompt, temp=temp, silent=silent,
                                          use_kv_caching=True)):
         s = time.time()
-        if i < 300:
+        if i < 0:
+            fine_tokens = coarse_tokens
+        elif i < 300:
             fine_tokens = generate_fine(
                 coarse_tokens,
                 history_prompt=history_prompt,
@@ -85,10 +87,12 @@ def semantic_to_waveform(
                 temp=0.5,
             )[:, 300:]
             fine_tokens = np.concatenate([last_fine_tokens, additional_fine_tokens], axis=1)
-        last_fine_tokens = fine_tokens
+        # last_fine_tokens = fine_tokens
 
+        print("Fine Generation: ", time.time() - s)
         # audio_arr = codec_decode(fine_tokens)
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
+        # np.save(f'fine_tokens_{index}.npy', audio_tokens_torch.cpu().numpy())
         features = vocos.codes_to_features(audio_tokens_torch)
         audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
 

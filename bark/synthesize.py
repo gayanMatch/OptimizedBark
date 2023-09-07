@@ -5,14 +5,15 @@ from bark import generate_audio, SAMPLE_RATE
 
 
 
-def synthesize(text_prompt, directory="static", index_=0):
+def synthesize(text_prompt, directory="static", voice="en_fiery", index_=0):
     start_time = time.time()
     index = index_
     text = text_prompt.replace("\n", " ").strip()
     sentences = nltk.sent_tokenize(text)
+    
     for sentence in sentences:
-        index = generate_audio(sentence, history_prompt="en_fiery", directory=directory, initial_index=index, silent=True)
-    file = open('finish.lock', 'wt')
+        index = generate_audio(sentence, history_prompt=voice.replace('.npz', ''), directory=directory, initial_index=index, silent=True)
+    file = open(f'{directory}/finish.lock', 'wt')
     file.write("Finish")
     file.close()
     # generate_audio(text_prompt, history_prompt="en_fiery", directory=directory, initial_index=index, silent=True)
