@@ -4,9 +4,16 @@ import numpy as np
 import time
 import soundfile as sf
 from .generation import codec_decode, generate_coarse, generate_fine, generate_text_semantic
+# from .semantic_syn import generate_text_semantic_finetune
 
+
+from vocos import Vocos
+import torch
 
 # import matplotlib.pyplot as plt
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
+
 
 def text_to_semantic(
         text: str,
@@ -29,7 +36,7 @@ def text_to_semantic(
         text,
         history_prompt=history_prompt,
         temp=temp,
-        silent=silent,
+        silent=False,
         use_kv_caching=True
     )
     return x_semantic
@@ -58,28 +65,51 @@ def semantic_to_waveform(
     """
     last_audio = None
     index = initial_index
-    s = time.perf_counter()
-    for coarse_tokens in generate_coarse(semantic_tokens, history_prompt=history_prompt, temp=temp, silent=silent,
-                                         use_kv_caching=True):
-        fine_tokens = generate_fine(
-            coarse_tokens,
-            history_prompt=history_prompt,
-            temp=0.5,
-        )
-        audio_arr = codec_decode(fine_tokens)
-        print(audio_arr.shape)
+    last_fine_tokens = None
+    total_audios = []
+    print("Symantic Generated: ", time.time())
+    for i, coarse_tokens in enumerate(generate_coarse(semantic_tokens, history_prompt=history_prompt, temp=temp, silent=False,
+                                         use_kv_caching=True)):
+        s = time.time()
+        if i < 0:
+            fine_tokens = coarse_tokens
+        elif i < 300:
+            fine_tokens = generate_fine(
+                coarse_tokens,
+                history_prompt=history_prompt,
+                temp=0.5,
+            )
+            last_fine_tokens = fine_tokens
+        else:
+            additional_fine_tokens = generate_fine(
+                coarse_tokens[:, 150 * (i - 2):],
+                history_prompt=history_prompt,
+                temp=0.5,
+            )[:, 300:]
+            fine_tokens = np.concatenate([last_fine_tokens, additional_fine_tokens], axis=1)
+        # last_fine_tokens = fine_tokens
+
+        print("Fine Generation: ", time.time() - s)
+        # audio_arr = codec_decode(fine_tokens)
+        audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
+        # np.save(f'fine_tokens_{index}.npy', audio_tokens_torch.cpu().numpy())
+        features = vocos.codes_to_features(audio_tokens_torch)
+        audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
+
         # plt.plot(audio_arr)
         if last_audio is None:
             last_audio = audio_arr
-            print("First Byte Generated: ", time.perf_counter() - s)
+            print("First Byte Generated: ", time.time())
             start = 0
         else:
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
             last_audio = audio_arr
-        sf.write(f"{directory}/audio_{index}.wav", audio_arr[start:], 24000)
+        total_audios.append(audio_arr[start:])
+        sf.write(f"{directory}/audio_{index}.mp3", audio_arr[start:], 24000)
+        print(f"Generated audio_{index}.mp3", time.time())
         index += 1
-    # plt.show()
+    sf.write(f"{directory}/audio.mp3", np.concatenate(total_audios), 24000)
     if output_full:
         full_generation = {
             "semantic_prompt": semantic_tokens,
@@ -104,7 +134,7 @@ def generate_audio(
         text: str,
         history_prompt: Optional[Union[Dict, str]] = None,
         text_temp: float = 0.7,
-        waveform_temp: float = 0.7,
+        waveform_temp: float = 0.5,
         silent: bool = False,
         output_full: bool = False,
         directory=None,
@@ -123,7 +153,7 @@ def generate_audio(
     Returns:
         numpy audio array at sample frequency 24khz
     """
-    print(time.perf_counter())
+    print("Model Generation Started: ", time.time())
     semantic_tokens = text_to_semantic(
         text,
         history_prompt=history_prompt,

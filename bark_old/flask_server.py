@@ -50,9 +50,6 @@ def show_entries():
         if file:
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            synthesize_thread.synthesize_queue.append((filename.replace('.npz', ''), True))
-            while synthesize_thread.isWorking:
-                time.sleep(0.01)
             flash('File uploaded successfully')
             return redirect(request.url)
 
@@ -75,7 +72,7 @@ def synthesize():
     directory_path = 'bark/static'
     shutil.rmtree(directory_path)
     os.mkdir(directory_path)
-    synthesize_thread.synthesize_queue.append((text, False))
+    synthesize_thread.synthesize_queue.append(text)
     while not os.path.exists(f'{directory_path}/audio_0.mp3'):
         time.sleep(0.01)
     return redirect("http://138.2.225.7:4000/file")

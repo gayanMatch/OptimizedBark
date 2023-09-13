@@ -10,11 +10,9 @@ def file_stream():
         i = 0
         chunk_size = 2048
         directory_path = 'static'
-        # print(directory_path)
         while True:
             path = f'{directory_path}/audio_{i}.mp3'
-            # print(path)
-            if os.path.exists(path):
+            if os.path.exists(path):                
                 i += 1
                 with open(path, "rb") as f:
                     for chunk in iter(lambda: f.read(chunk_size), b""):  # 4096 bytes chunk size

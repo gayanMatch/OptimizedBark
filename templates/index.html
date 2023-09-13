@@ -1,0 +1,49 @@
+<html>
+<body>
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <ul>
+        {% for message in messages %}
+        <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+    {% endif %}
+    {% endwith %}
+    <h1>File Upload</h1>
+    <form method=post enctype=multipart/form-data>
+        <input type=file name=file>
+        <input type=submit value="Upload">
+    </form>
+    <h2>Select a File</h2>
+    <form>
+        <select name="selected_file" onchange="this.form.submit()">
+        <option value="">--Select a File--</option>
+        {% for file in uploaded_files %}
+            <option value="{{ file }}" {% if selected_file == file %}selected{% endif %}>{{ file }}</option>
+        {% endfor %}
+        </select>
+    </form>
+    <form action="/synthesize" method='POST'>
+        <table>
+            <style>
+                table {
+                    margin: auto;
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    bottom: 0;
+                    right: 0;
+                }
+            </style>
+            <tr>
+                <td>Text</td>
+                <td><textarea type="text" name="text" style="width: 500px; height: 100px;"> </textarea></td>
+            </tr>
+            <tr>
+                <td align="center"><input type="submit"></td>
+            </tr>
+        </table>
+    </form>
+</body>
+
+</html>

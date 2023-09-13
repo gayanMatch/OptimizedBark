@@ -1,12 +1,26 @@
 import time
+import soundfile as sf
 import nltk
-from bark.generation import preload_models
-from bark import generate_audio, SAMPLE_RATE
+from bark.api import generate_audio, save_as_prompt
+from transformers import BertTokenizer
+from bark.generation import SAMPLE_RATE, preload_models, codec_decode, generate_coarse, generate_fine, generate_text_semantic
 
-def synthesize(text_prompt, directory="static", index_=0):
+
+
+def synthesize(text_prompt, directory="static", voice="en_fiery", index_=0):
     start_time = time.time()
-    index = index_
-    generate_audio(text_prompt, history_prompt="v2/en_speaker_9", directory=directory, initial_index=index)
+    text = text_prompt.replace("\n", " ").strip()
+    # sentences = nltk.sent_tokenize(text)
+    
+    # for sentence in sentences:
+    #     index = generate_audio(sentence, history_prompt=voice.replace('.npz', ''), directory=directory, initial_index=index, silent=True)
+    prompt, audio = generate_audio(text, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, output_full=True)
+    save_as_prompt(f'{directory}/prompt.npz', prompt)
+    sf.write(f"{directory}/audio_0.mp3", audio, samplerate=SAMPLE_RATE)
+    file = open(f'{directory}/finish.lock', 'wt')
+    file.write("Finish")
+    file.close()
+    # generate_audio(text_prompt, history_prompt="en_fiery", directory=directory, initial_index=index, silent=True)
     end_time = time.time()
     duration = end_time - start_time
     print(f"Time for syntesize: {duration}")
@@ -30,12 +44,15 @@ Hello, I'm really excited about optimizing bark with Air AI.
     #     synthesize(clip, directory=directory)
     #     # synthesize(test_clip, directory=directory)
     #     clip = input("Type your text here: \n")
-    synthesize(clip, directory=directory)
-    text = "Ok. Perfect. Well the reason I’m calling you is I’m actually a manager over here on Scale 13's client success team on a recorded line,"
-    synthesize(text, directory=directory)
+    audio_array = synthesize(clip, directory=directory)
+    text = "Totally get it, brother. Okay, no worries. Okay, well, with the video, you did get a chance to watch it though, right?"
+    # audio_array = synthesize(text, directory=directory, voice="bark/static/prompt.npz")
+    audio_array = synthesize(text, directory=directory, voice="final_Either_way_weve-23_09_04__17-51-24.mp4")
 
     # # text = "Yeah. So it uh, it looks like you opted into one of our ads looking for information on how to scale your business using AI."
     # synthesize(text, directory=directory, index_=1)
 
     # # text = "Yeah. So it uh, it looks like you opted into one of our ads looking for information on how to scale your business using AI."
     # synthesize(text, directory=directory, index_=2)
+    # print(audio_array.shape)
+    # sf.write('bark/static/audio.mp3', audio_array, samplerate=24000)
