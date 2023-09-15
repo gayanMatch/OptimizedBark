@@ -4,12 +4,12 @@ from flask import Flask, Response
 
 app = Flask(__name__)
 
-@app.route('/file')
-def file_stream():
+@app.route('/<call_id>/play')
+def file_stream(call_id):
     def event_stream():
         i = 0
         chunk_size = 2048
-        directory_path = 'static'
+        directory_path = f'static/{call_id}'
         # print(directory_path)
         while True:
             path = f'{directory_path}/audio_{i}.mp3'

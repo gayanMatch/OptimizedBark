@@ -7,8 +7,9 @@ class SynthesizeThread(Thread):
         self.synthesize_queue = []
         self.isWorking = False
         self.voice = voice
+        self.directory = "bark/static"
     def run(self) -> None:
-        synthesize("Hello, this is warm up synthesize.", directory="bark/static")
+        synthesize("Hello, this is warm up synthesize.", directory=self.directory)
         while True:
             if self.synthesize_queue:
                 print("Synthesis Started: ", time.time())
