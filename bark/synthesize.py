@@ -26,10 +26,29 @@ def synthesize(text_prompt, directory="static", voice="en_fiery", index_=0):
     sf.write(f"{directory}/audio_{index}.mp3", audio, samplerate=SAMPLE_RATE)
     print(f"{directory}/audio_{index}.mp3", time.time())
     save_as_prompt(f"{directory}/prompt_{index}.npz", prompt)
-
+    syn_sentences = []
     index += 1
+    for i, sentence in enumerate(sentences[1:]):
+        if word_count(sentence) < 7:
+            if 2 + i < len(sentences):
+                sentences[2 + i] = sentences[i + 1] + " " + sentences[i + 2]
+            else:
+                sentences[i] = sentences[i] + sentences[i + 1]
+            
     for sentence in sentences[1:]:
-        if word_count(sentence) < 15:
+        if word_count(sentence) > 6:
+            syn_sentences.append(sentence)
+
+    for sentence in syn_sentences:
+        if word_count(sentence) < 7:
+            if not os.path.exists(f"bark/assets/prompts/short/{voice}.npz"):
+                synthesize_prompt(voice)
+            prompt, audio = generate_audio(sentence, history_prompt=f"short/{voice}", text_temp=0.7, waveform_temp=0.5, silent=True, output_full=True)
+            sf.write(f"{directory}/audio_{index}.mp3", audio, samplerate=SAMPLE_RATE)
+            save_as_prompt(f"{directory}/prompt_{index}.npz", prompt)
+            print(f"{directory}/audio_{index}.mp3")
+            index += 1
+        elif word_count(sentence) < 15:
             prompt, audio = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, output_full=True)
             # _, audio = generate_audio(sentence, history_prompt="final_Either_way_weve-23_09_04__17-51-24.mp4", text_temp=0.7, waveform_temp=0.5, silent=True, output_full=True)
             sf.write(f"{directory}/audio_{index}.mp3", audio, samplerate=SAMPLE_RATE)
