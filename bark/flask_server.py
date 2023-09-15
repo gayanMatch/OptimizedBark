@@ -71,11 +71,23 @@ def show_entries():
     print(synthesize_thread.voice)
     return render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
+@app.route('/<call_id>/synthesize', methods=["POST"])
+def synthesize(call_id):
+    text = request.get_json()['text']
+    print(text)
+    directory_path = f'bark/static/{call_id}'
+    shutil.rmtree(directory_path)
+    os.mkdir(directory_path)
+    thread_dict[call_id].synthesize_queue.append((text, False))
+    while not os.path.exists(f'{directory_path}/audio_0.mp3'):
+        time.sleep(0.01)
+    return redirect(f"http://138.2.225.7:4000/{call_id}/play")
+
 @app.route('/<call_id>/start')
 def create_call(call_id):
     synthesize_thread = free_threads.pop()
     synthesize_thread.directory = f"bark/static/{call_id}"
-    os.makedirs(f"bark/static/{call_id}")
+    os.makedirs(f"bark/static/{call_id}", exist_ok=True)
     thread_dict[call_id] = synthesize_thread
     return "Success"
 
@@ -88,17 +100,7 @@ def set_voice(call_id):
     return "Success"
 
 # Route to synthesize
-@app.route('/<call_id>/synthesize', methods=["POST"])
-def synthesize(call_id):
-    text = request.form['text']
-    print(text)
-    directory_path = f'bark/static/{call_id}'
-    shutil.rmtree(directory_path)
-    os.mkdir(directory_path)
-    thread_dict[call_id].synthesize_queue.append((text, False))
-    while not os.path.exists(f'{directory_path}/audio_0.mp3'):
-        time.sleep(0.01)
-    return redirect(f"http://138.2.225.7:4000/{call_id}/play")
+
 
 
 @app.route('/file')

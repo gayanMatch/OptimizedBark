@@ -18,7 +18,7 @@ class SynthesizeThread(Thread):
                     if is_voice_prompt:
                         synthesize_prompt(sentence)
                     else:
-                        synthesize(sentence, directory="bark/static", voice=self.voice)
+                        synthesize(sentence, directory=self.directory, voice=self.voice)
                     # time.sleep(2)
                     print("Synthesize Finished:", time.time())
                     print("Synthesize Finished:", sentence)
