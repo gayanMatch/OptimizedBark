@@ -39,9 +39,6 @@ else:
 global models
 models = {}
 
-global models_devices
-models_devices = {}
-
 
 CONTEXT_WINDOW_SIZE = 1024
 
@@ -248,8 +245,9 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
     del checkpoint, state_dict
     _clear_cuda_cache()
     if model_type == "text":
+        config_file = 'semantic_config.yaml' if use_small or USE_SMALL_MODELS else 'semantic_config_large.yaml'
         tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
-        total_config = yaml.safe_load(open('semantic_config.yaml', 'rb'))
+        total_config = yaml.safe_load(open(config_file, 'rb'))
         kv_metadata = NetworkMetadata(variant=total_config['GPT2_VARIANT'], precision=Precision(fp16=total_config['fp16']),
                               other=GPT2Metadata(kv_cache=total_config['use_cache']))
         kv_gpt2_engine = GPT2TRTEngine(total_config['kv_engine_path'], kv_metadata)
@@ -291,12 +289,8 @@ def load_model(use_gpu=True, use_small=False, force_reload=False, model_type="te
     if model_type not in ("text", "coarse", "fine"):
         raise NotImplementedError()
     global models
-    global models_devices
     device = _grab_best_device(use_gpu=use_gpu)
     model_key = f"{model_type}"
-    if OFFLOAD_CPU:
-        models_devices[model_key] = device
-        device = "cpu"
     if model_key not in models or force_reload:
         ckpt_path = _get_ckpt_path(model_type, use_small=use_small)
         clean_models(model_key=model_key)
@@ -313,15 +307,11 @@ def load_model(use_gpu=True, use_small=False, force_reload=False, model_type="te
 
 def load_codec_model(use_gpu=True, force_reload=False):
     global models
-    global models_devices
     device = _grab_best_device(use_gpu=use_gpu)
     if device == "mps":
         # encodec doesn't support mps
         device = "cpu"
     model_key = "codec"
-    if OFFLOAD_CPU:
-        models_devices[model_key] = device
-        device = "cpu"
     if model_key not in models or force_reload:
         clean_models(model_key=model_key)
         model = _load_codec_model(device)
@@ -415,6 +405,8 @@ def generate_text_semantic(
     max_gen_duration_s=None,
     allow_early_stop=True,
     use_kv_caching=False,
+    model_container = None,
+    queue = None
 ):
     """Generate semantic tokens from text."""
     assert isinstance(text, str)
@@ -432,18 +424,10 @@ def generate_text_semantic(
         )
     else:
         semantic_history = None
-    # load models if not yet exist
-    global models
-    global models_devices
-    if "text" not in models:
-        preload_models()
-    model_container = models["text"]
     model = model_container["model"]
     trt_model = model_container["trt_model"]
     tokenizer = model_container["tokenizer"]
     encoded_text = np.array(_tokenize(tokenizer, text)) + TEXT_ENCODING_OFFSET
-    if OFFLOAD_CPU:
-        model.to(models_devices["text"])
     device = next(model.parameters()).device
     if len(encoded_text) > 256:
         p = round((len(encoded_text) - 256) / len(encoded_text) * 100, 1)
@@ -472,6 +456,9 @@ def generate_text_semantic(
             encoded_text, semantic_history, np.array([SEMANTIC_INFER_TOKEN])
         ]).astype(np.int64)
     )[None]
+
+    x_semantic = torch.from_numpy(semantic_history[-209:].astype(np.int32)).cuda()
+    queue.put((x_semantic, False))
     assert x.shape[1] == 256 + 256 + 1
     with _inference_mode():
         x = x.to(device)
@@ -513,8 +500,8 @@ def generate_text_semantic(
                 v, _ = torch.topk(relevant_logits, min(top_k, relevant_logits.size(-1)))
                 relevant_logits[relevant_logits < v[-1]] = -float("Inf")
             probs = F.softmax(relevant_logits / temp, dim=-1)
-            item_next = torch.multinomial(probs, num_samples=1).to(torch.int32)
-            # item_next = torch.argmax(probs).unsqueeze(0).to(torch.int32)
+            # item_next = torch.multinomial(probs, num_samples=1).to(torch.int32)
+            item_next = torch.argmax(probs).unsqueeze(0).to(torch.int32)
             if allow_early_stop and (
                 item_next == SEMANTIC_VOCAB_SIZE
                 or (min_eos_p is not None and probs[-1] >= min_eos_p)
@@ -523,6 +510,9 @@ def generate_text_semantic(
                 pbar.update(n - pbar_state)
                 break
             x = torch.cat((x, item_next[None]), dim=1)
+            x_semantic = torch.cat((x_semantic, item_next))
+            if n % 20 == 7 and n > 40:
+                queue.put((x_semantic, False))
             tot_generated_duration_s += 1 / SEMANTIC_RATE_HZ
             if max_gen_duration_s is not None and tot_generated_duration_s > max_gen_duration_s:
                 pbar.update(n - pbar_state)
@@ -537,12 +527,11 @@ def generate_text_semantic(
                     pbar.total = n
                 pbar.update(n - pbar_state)
             pbar_state = n
+        queue.put((x_semantic, True))
         pbar.total = n
         pbar.refresh()
         pbar.close()
         out = x.detach().cpu().numpy().squeeze()[256 + 256 + 1 :]
-    if OFFLOAD_CPU:
-        model.to("cpu")
     assert all(0 <= out) and all(out < SEMANTIC_VOCAB_SIZE)
     _clear_cuda_cache()
     return out
@@ -563,7 +552,8 @@ COARSE_INFER_TOKEN = 12_050
 
 
 def generate_coarse(
-    x_semantic,
+    semantic_queue,
+    coarse_queue,
     history_prompt=None,
     temp=0.7,
     top_k=None,
@@ -572,16 +562,9 @@ def generate_coarse(
     max_coarse_history=630,  # min 60 (faster), max 630 (more context)
     sliding_window_len=60,
     use_kv_caching=False,
-    stream=False
+    model_container=None,
 ):
     """Generate coarse audio codes from semantic tokens."""
-    assert (
-        isinstance(x_semantic, np.ndarray)
-        and len(x_semantic.shape) == 1
-        and len(x_semantic) > 0
-        and x_semantic.min() >= 0
-        and x_semantic.max() <= SEMANTIC_VOCAB_SIZE - 1
-    )
     assert 60 <= max_coarse_history <= 630
     assert max_coarse_history + sliding_window_len <= 1024 - 256
     semantic_to_coarse_ratio = COARSE_RATE_HZ / SEMANTIC_RATE_HZ * N_COARSE_CODEBOOKS
@@ -624,36 +607,37 @@ def generate_coarse(
     else:
         x_semantic_history = np.array([], dtype=np.int32)
         x_coarse_history = np.array([], dtype=np.int32)
-    # load models if not yet exist
-    global models
-    global models_devices
-    if "coarse" not in models:
-        preload_models()
-    model_container = models["coarse"]
     model = model_container["model"]
     trt_model = model_container["trt_model"]
-    if OFFLOAD_CPU:
-        model.to(models_devices["coarse"])
     device = next(model.parameters()).device
     # start loop
-    n_steps = int(
-        round(
-            np.floor(len(x_semantic) * semantic_to_coarse_ratio / N_COARSE_CODEBOOKS)
-            * N_COARSE_CODEBOOKS
-        )
-    )
+    n_steps = 1e4
     assert n_steps > 0 and n_steps % N_COARSE_CODEBOOKS == 0
-    x_semantic = np.hstack([x_semantic_history, x_semantic]).astype(np.int32)
+    # x_semantic = np.hstack([x_semantic_history, x_semantic]).astype(np.int32)
     x_coarse = x_coarse_history.astype(np.int32)
     base_semantic_idx = len(x_semantic_history)
+    is_final = False
     with _inference_mode():
-        x_semantic_in = torch.from_numpy(x_semantic)[None].to(device)
+        # x_semantic_in = torch.from_numpy(x_semantic)[None].to(device)
         x_coarse_in = torch.from_numpy(x_coarse)[None].to(device)
         n_window_steps = int(np.ceil(n_steps / sliding_window_len))
         n_step = 0
         for i_win in tqdm.tqdm(range(n_window_steps), total=n_window_steps, disable=silent):
+            if n_step >= n_steps:
+                break
             semantic_idx = base_semantic_idx + int(round(n_step / semantic_to_coarse_ratio))
             # pad from right side
+            if not is_final:
+                x_semantic_in, is_final = semantic_queue.get()
+                
+                if is_final:
+                    n_steps = int(
+                        round(
+                            np.floor((len(x_semantic_in) - 209) * semantic_to_coarse_ratio / N_COARSE_CODEBOOKS)
+                            * N_COARSE_CODEBOOKS
+                        )
+                    )
+                x_semantic_in = x_semantic_in.unsqueeze(0)
             x_in = x_semantic_in[:, np.max([0, semantic_idx - max_semantic_history]) :]
             x_in = x_in[:, :256]
             x_in = F.pad(
@@ -670,9 +654,10 @@ def generate_coarse(
                 ]
             )
             kv_cache = None
+
             for _ in range(sliding_window_len):
                 if n_step >= n_steps:
-                    continue
+                    break
                 is_major_step = n_step % N_COARSE_CODEBOOKS == 0
 
                 if use_kv_caching and kv_cache is not None:
@@ -708,21 +693,21 @@ def generate_coarse(
                     v, _ = torch.topk(relevant_logits, min(top_k, relevant_logits.size(-1)))
                     relevant_logits[relevant_logits < v[-1]] = -float("Inf")
                 probs = F.softmax(relevant_logits / temp, dim=-1)
-                item_next = torch.multinomial(probs, num_samples=1).to(torch.int32)
-                # item_next = torch.argmax(probs).unsqueeze(0).to(torch.int32)
+                # item_next = torch.multinomial(probs, num_samples=1).to(torch.int32)
+                item_next = torch.argmax(probs).unsqueeze(0).to(torch.int32)
                 item_next += logit_start_idx
                 x_coarse_in = torch.cat((x_coarse_in, item_next[None]), dim=1)
                 x_in = torch.cat((x_in, item_next[None]), dim=1)
                 del logits, relevant_logits, probs, item_next
                 n_step += 1
             del x_in
-            if i_win % 5 == 4 and i_win > 2 and stream:
+            if i_win % 5 == 4 and i_win > 2:
                 gen_coarse_arr = x_coarse_in.detach().cpu().numpy().squeeze()[len(x_coarse_history):]
                 gen_coarse_audio_arr = gen_coarse_arr.reshape(-1, N_COARSE_CODEBOOKS).T - SEMANTIC_VOCAB_SIZE
                 for n in range(1, N_COARSE_CODEBOOKS):
                     gen_coarse_audio_arr[n, :] -= n * CODEBOOK_SIZE
                 _clear_cuda_cache()
-                yield gen_coarse_audio_arr
+                coarse_queue.put(gen_coarse_audio_arr)
         del x_semantic_in
     if OFFLOAD_CPU:
         model.to("cpu")
@@ -733,7 +718,7 @@ def generate_coarse(
     for n in range(1, N_COARSE_CODEBOOKS):
         gen_coarse_audio_arr[n, :] -= n * CODEBOOK_SIZE
     _clear_cuda_cache()
-    yield gen_coarse_audio_arr
+    coarse_queue.put(gen_coarse_audio_arr)
 
 
 def generate_fine(
@@ -767,12 +752,9 @@ def generate_fine(
     n_coarse = x_coarse_gen.shape[0]
     # load models if not yet exist
     global models
-    global models_devices
     if "fine" not in models:
         preload_models()
     model = models["fine"]
-    if OFFLOAD_CPU:
-        model.to(models_devices["fine"])
     device = next(model.parameters()).device
     # make input arr
     in_arr = np.vstack(
@@ -849,12 +831,9 @@ def codec_decode(fine_tokens):
     """Turn quantized audio codes into audio array using encodec."""
     # load models if not yet exist
     global models
-    global models_devices
     if "codec" not in models:
         preload_models()
     model = models["codec"]
-    if OFFLOAD_CPU:
-        model.to(models_devices["codec"])
     device = next(model.parameters()).device
     arr = torch.from_numpy(fine_tokens)[None]
     arr = arr.to(device)

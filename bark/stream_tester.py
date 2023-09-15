@@ -13,7 +13,7 @@ def file_stream():
         # print(directory_path)
         while True:
             path = f'{directory_path}/audio_{i}.mp3'
-            # print(path)
+            print(path)
             if os.path.exists(path):
                 i += 1
                 with open(path, "rb") as f:

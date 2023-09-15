@@ -86,9 +86,11 @@ def semantic_to_waveform(
             temp=0.5,
         )
         # audio_arr = codec_decode(fine_tokens)
+        s = time.time()
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
         features = vocos.codes_to_features(audio_tokens_torch)
         audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
+        print(time.time() - s)
     if output_full:
         full_generation = {
             "semantic_prompt": semantic_tokens,

@@ -20,9 +20,9 @@ def synthesize(text_prompt, directory="static", voice="en_fiery", index_=0):
     if word_count(sentence) < 7:
         if not os.path.exists(f"bark/assets/prompts/short/{voice}.npz"):
             synthesize_prompt(voice)
-        prompt, audio = generate_audio(sentence, history_prompt=f"short/{voice}", text_temp=0.7, waveform_temp=0.5, silent=True, output_full=True)
+        prompt, audio = generate_audio(sentence, history_prompt=f"short/{voice}", text_temp=0.7, waveform_temp=0.5, silent=False, output_full=True)
     else:
-        prompt, audio = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, output_full=True)
+        prompt, audio = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=False, output_full=True)
     sf.write(f"{directory}/audio_{index}.mp3", audio, samplerate=SAMPLE_RATE)
     print(f"{directory}/audio_{index}.mp3", time.time())
     save_as_prompt(f"{directory}/prompt_{index}.npz", prompt)

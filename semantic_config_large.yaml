@@ -1,0 +1,16 @@
+GPT2_VARIANT: "bark_large"
+batch_size: 1
+kv_engine_path: ./models/bark_large/trt-engine/bark_large-kv_cache_bs1.engine
+use_cache: True
+fp16: True
+model:
+  bias: False
+  block_size: 1024
+  dropout: 0.0
+  input_vocab_size: 129600
+  n_embd: 1024
+  n_head: 16
+  n_layer: 24
+  output_vocab_size: 10048
+  use_cache: True
+  vocab_size: 10048
