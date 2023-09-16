@@ -9,7 +9,7 @@ def file_stream():
     def event_stream():
         i = 0
         chunk_size = 2048
-        directory_path = 'static/CA123'
+        directory_path = 'static'
         # print(directory_path)
         while True:
             path = f'{directory_path}/audio_{i}.mp3'

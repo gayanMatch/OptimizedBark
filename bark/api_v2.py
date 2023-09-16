@@ -9,7 +9,7 @@ import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
 
-def detect_last_silence_index(audio_data, sr=24000, threshold=0.0015, min_silence=10):
+def detect_last_silence_index(audio_data, sr=24000, threshold=0.0015, min_silence=5):
     silence_start = None
     silence_count = 0
     min_silent_samples = (sr * min_silence) // 1000
@@ -226,7 +226,7 @@ def generate_audio(
             if end_point < start + 12000:
                 end_point = len(audio_arr)
             last_audio = audio_arr[:end_point]
-        print(start, end_point)
+        # print(start, end_point)
         sf.write(f"{directory}/audio_{index}.mp3", np.float32(audio_arr[start:end_point]), 24000)
         full_generation = {
             "semantic_prompt": semantic_tokens,
