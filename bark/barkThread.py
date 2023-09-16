@@ -4,8 +4,8 @@ import torch
 import soundfile as sf
 import numpy as np
 from threading import Thread
-from bark.generation_v2 import load_model
-from bark.generation_v2 import generate_text_semantic, generate_coarse, generate_fine
+from bark.generation_v3 import load_model
+from bark.generation_v3 import generate_text_semantic, generate_coarse, generate_fine
 from vocos import Vocos
 
 def detect_last_silence_index(audio_data, sr=24000, threshold=0.0015, min_silence=25):

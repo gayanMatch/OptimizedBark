@@ -1,22 +1,26 @@
+import os
 import time
+import shutil
 import soundfile as sf
 import nltk
-from bark.api import generate_audio, save_as_prompt
+from bark.api_v2 import generate_audio, save_as_prompt
 from transformers import BertTokenizer
 from bark.generation import SAMPLE_RATE, preload_models, codec_decode, generate_coarse, generate_fine, generate_text_semantic
 
 
 
 def synthesize(text_prompt, directory="static", voice="en_fiery", index_=0):
+    shutil.rmtree(directory)
+    os.mkdir(directory)
     start_time = time.time()
     text = text_prompt.replace("\n", " ").strip()
     # sentences = nltk.sent_tokenize(text)
-    
+    print(start_time)
     # for sentence in sentences:
     #     index = generate_audio(sentence, history_prompt=voice.replace('.npz', ''), directory=directory, initial_index=index, silent=True)
-    prompt, audio = generate_audio(text, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, output_full=True)
-    save_as_prompt(f'{directory}/prompt.npz', prompt)
-    sf.write(f"{directory}/audio_0.mp3", audio, samplerate=SAMPLE_RATE)
+    index = generate_audio(text, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory)
+    # save_as_prompt(f'{directory}/prompt.npz', prompt)
+    # sf.write(f"{directory}/audio_0.mp3", audio, samplerate=SAMPLE_RATE)
     file = open(f'{directory}/finish.lock', 'wt')
     file.write("Finish")
     file.close()
@@ -39,13 +43,13 @@ Hello, I'm really excited about optimizing bark with Air AI.
     if sys.platform.startswith('win'):
         directory = 'static'
     else:
-        directory = 'bark/static'
+        directory = 'bark/static/CA123'
     # while True:
     #     synthesize(clip, directory=directory)
     #     # synthesize(test_clip, directory=directory)
     #     clip = input("Type your text here: \n")
     audio_array = synthesize(clip, directory=directory)
-    text = "Totally get it, brother. Okay, no worries. Okay, well, with the video, you did get a chance to watch it though, right?"
+    text = "Great to hear! Conversational AI has a lot of potential, especially in real estate. It's all about making connections, right? Let me check their availability... Okay, it looks like I have slots open tomorrow at 2 PM and 4 PM. Does either of those work for you?"
     # audio_array = synthesize(text, directory=directory, voice="bark/static/prompt.npz")
     audio_array = synthesize(text, directory=directory, voice="final_Either_way_weve-23_09_04__17-51-24.mp4")
 
