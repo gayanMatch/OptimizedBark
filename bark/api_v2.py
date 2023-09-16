@@ -9,7 +9,7 @@ import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
 
-def detect_last_silence_index(audio_data, sr=24000, threshold=0.0015, min_silence=5):
+def detect_last_silence_index(audio_data, sr=24000, threshold=0.04, min_silence=20):
     silence_start = None
     silence_count = 0
     min_silent_samples = (sr * min_silence) // 1000
@@ -216,14 +216,16 @@ def generate_audio(
         features = vocos.codes_to_features(audio_tokens_torch)
         audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
         if last_audio is None:
-            last_audio = audio_arr
             start = 0
-            end_point = len(audio_arr)
+            end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
+            if end_point < start + 30000:
+                end_point = len(audio_arr)
+            last_audio = audio_arr[:end_point]
         else:
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
             end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
-            if end_point < start + 12000:
+            if end_point < start + 30000:
                 end_point = len(audio_arr)
             last_audio = audio_arr[:end_point]
         # print(start, end_point)

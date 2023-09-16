@@ -48,8 +48,9 @@ Hello, I'm really excited about optimizing bark with Air AI.
     #     synthesize(clip, directory=directory)
     #     # synthesize(test_clip, directory=directory)
     #     clip = input("Type your text here: \n")
+    os.makedirs(directory, exist_ok=True)
     audio_array = synthesize(clip, directory=directory)
-    text = "Great to hear! Conversational AI has a lot of potential, especially in real estate. It's all about making connections, right? Let me check their availability... Okay, it looks like I have slots open tomorrow at 2 PM and 4 PM. Does either of those work for you?"
+    text = "With those in mind, let's break it down. Our conversational AI has a proven track record of improving lead conversion by 25-35%. That means you could potentially see a CLV increase to about $12,500."
     # audio_array = synthesize(text, directory=directory, voice="bark/static/prompt.npz")
     audio_array = synthesize(text, directory=directory, voice="final_Either_way_weve-23_09_04__17-51-24.mp4")
 
