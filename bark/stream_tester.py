@@ -19,7 +19,7 @@ def file_stream():
                 with open(path, "rb") as f:
                     for chunk in iter(lambda: f.read(chunk_size), b""):  # 4096 bytes chunk size
                         yield chunk
-                        time.sleep(0.05)
+                        time.sleep(0.01)
             elif not os.path.exists(f'{directory_path}/finish.lock'):
                 time.sleep(0.03)
             else:

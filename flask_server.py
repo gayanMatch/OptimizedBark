@@ -113,6 +113,7 @@ def serve_audio(filename):
 
 def stream_file(file_name, chunk_size=1024):
     with open(file_name, 'rb') as file:
+        file.seek(512)
         while True:
             chunk = file.read(chunk_size)
             if not chunk:
