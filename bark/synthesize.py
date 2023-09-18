@@ -2,7 +2,7 @@ import os
 import time
 import soundfile as sf
 import nltk
-from bark.api_v2 import generate_audio, save_as_prompt
+from bark.api_v2 import generate_audio, save_as_prompt, generate_prompt
 
 
 def word_count(sentence):
@@ -42,8 +42,7 @@ def synthesize(text_prompt, directory="static", voice="en_fiery"):
 
 def synthesize_prompt(voice):
     text_prompt = "I'm going to speak short prompts. Only short prompt itself."
-    prompt, _ = generate_audio(text_prompt, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, output_full=True, silent=False)
-    save_as_prompt(f"bark/assets/prompts/short/{voice}.npz", prompt)
+    generate_prompt(text_prompt, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=False)
     
 
 if __name__ == "__main__":

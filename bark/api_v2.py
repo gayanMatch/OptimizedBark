@@ -215,7 +215,7 @@ def generate_audio(
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
         features = vocos.codes_to_features(audio_tokens_torch)
         audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
-        sf.write(f"/home/ubuntu/bark_syn/audio_{index}.mp3", np.float32(audio_arr), 24000)
+        sf.write(f"bark_syn/audio_{index}.mp3", np.float32(audio_arr), 24000)
         if last_audio is None:
             start = 0
             end_point = len(audio_arr) - int(0.2 * 24000)
@@ -266,3 +266,60 @@ def generate_audio(
         
     # print("Total Audio Length: ", len(audio_arr) / 24000)
     return index
+
+
+def generate_prompt(
+        text: str,
+        history_prompt: Optional[Union[Dict, str]] = None,
+        text_temp: float = 0.7,
+        waveform_temp: float = 0.7,
+        silent: bool = False,
+):
+    """Generate audio array from input text.
+
+    Args:
+        text: text to be turned into audio
+        history_prompt: history choice for audio cloning
+        text_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
+        waveform_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
+        silent: disable progress bar
+        output_full: return full generation to be used as a history prompt
+
+    Returns:
+        numpy audio array at sample frequency 24khz
+    """
+    print(text)
+    x_coarse_in = None
+    n_step = 0
+
+    def save_prompt_from_coarse():
+        fine_tokens = generate_fine(
+            coarse_tokens,
+            history_prompt=history_prompt,
+            temp=0.5,
+        )
+        # print(start, end_point)
+        full_generation = {
+            "semantic_prompt": semantic_tokens,
+            "coarse_prompt": coarse_tokens,
+            "fine_prompt": fine_tokens,
+        }
+        save_as_prompt(f"bark/assets/prompts/short/{history_prompt}.npz", full_generation)
+
+    for semantic_tokens, is_finished in text_to_semantic(
+            text,
+            history_prompt=history_prompt,
+            temp=text_temp,
+            silent=silent,
+    ):
+        coarse_tokens, x_coarse_in, n_step = generate_coarse(
+            semantic_tokens,
+            is_finished,
+            history_prompt=history_prompt,
+            temp=waveform_temp,
+            silent=silent,
+            use_kv_caching=True,
+            initial_x_coarse_in=x_coarse_in,
+            initial_n_step=n_step
+        )
+    save_prompt_from_coarse()

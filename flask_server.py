@@ -78,7 +78,8 @@ def synthesize():
     synthesize_thread.synthesize_queue.append((text, False))
     while not os.path.exists(f'{directory_path}/audio_0.mp3'):
         time.sleep(0.01)
-    return redirect("http://138.2.225.7:4000/file")
+    url_root = request.url_root.replace('5000', '4000')
+    return redirect(f"{url_root}file")
 
 
 @app.route('/file')
