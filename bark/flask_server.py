@@ -25,7 +25,7 @@ formatter = logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 root.addHandler(ch)
-DEFAULT_VOICE = 'en_fiery.npz'
+DEFAULT_VOICE = 'en_fiery'
 
 free_threads = []
 for i in range(1):
@@ -73,11 +73,15 @@ def show_entries():
 
 @app.route('/<call_id>/synthesize', methods=["POST"])
 def synthesize(call_id):
-    text = request.get_json()['text']
+    json_data = request.get_json()
+    text = json_data['text']
+    voice = json_data['voice']
     print(text)
     directory_path = f'bark/static/{call_id}'
-    shutil.rmtree(directory_path)
+    if os.path.exists(directory_path):
+        shutil.rmtree(directory_path)
     os.mkdir(directory_path)
+    thread_dict[call_id].voice = voice
     thread_dict[call_id].synthesize_queue.append((text, False))
     while not os.path.exists(f'{directory_path}/audio_0.mp3'):
         time.sleep(0.01)
