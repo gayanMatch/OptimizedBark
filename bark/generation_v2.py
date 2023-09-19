@@ -44,7 +44,7 @@ models_devices = {}
 
 
 CONTEXT_WINDOW_SIZE = 1024
-
+CHUNK_SIZE = 3
 SEMANTIC_RATE_HZ = 49.9
 SEMANTIC_VOCAB_SIZE = 10_000
 
@@ -523,7 +523,7 @@ def generate_text_semantic(
                 pbar.update(n - pbar_state)
                 break
             x = torch.cat((x, item_next[None]), dim=1)
-            if n % 20 == 7 and n > 40:
+            if n % ( CHUNK_SIZE * 20) == 27 and n > 20 * CHUNK_SIZE:
                 yield x.detach().cpu().numpy().squeeze()[256 + 256 + 1 :], False
             tot_generated_duration_s += 1 / SEMANTIC_RATE_HZ
             if max_gen_duration_s is not None and tot_generated_duration_s > max_gen_duration_s:
@@ -725,7 +725,7 @@ def generate_coarse(
                 del logits, relevant_logits, probs, item_next
                 n_step += 1
             del x_in
-            if not is_finished:
+            if not is_finished and i_win == CHUNK_SIZE - 1:
                 break
         del x_semantic_in
     if OFFLOAD_CPU:

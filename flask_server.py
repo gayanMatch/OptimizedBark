@@ -25,7 +25,7 @@ formatter = logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 root.addHandler(ch)
-DEFAULT_VOICE = 'en_fiery.npz'
+DEFAULT_VOICE = 'en_fiery'
 synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
 synthesize_thread.start()
 

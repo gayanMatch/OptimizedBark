@@ -259,8 +259,8 @@ def generate_audio(
             initial_x_coarse_in=x_coarse_in,
             initial_n_step=n_step
         )
-        if cnt % 5 == 4:
-            last_audio, index = gen_audio_from_coarse(last_audio, index)
+        # if cnt % 5 == 4:
+        last_audio, index = gen_audio_from_coarse(last_audio, index)
         cnt += 1
     last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
         
