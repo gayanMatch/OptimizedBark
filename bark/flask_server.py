@@ -85,7 +85,8 @@ def synthesize(call_id):
     thread_dict[call_id].synthesize_queue.append((text, False))
     while not os.path.exists(f'{directory_path}/audio_0.mp3'):
         time.sleep(0.01)
-    return redirect(f"http://138.2.225.7:4000/{call_id}/play")
+    url_root = request.url_root.replace('5000', '4000')
+    return redirect(f"{url_root}{call_id}/play")
 
 @app.route('/<call_id>/start')
 def create_call(call_id):
@@ -169,7 +170,7 @@ def stream_file(file_name, chunk_size=1024):
 
 # launch a Tornado server with HTTPServer.
 if __name__ == "__main__":
-    port = 5000
+    port = 5001
     http_server = HTTPServer(WSGIContainer(app))
     logging.debug("Started Server, Kindly visit http://0.0.0.0:" + str(port))
     http_server.listen(port, address='0.0.0.0')
