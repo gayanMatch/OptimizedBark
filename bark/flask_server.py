@@ -96,6 +96,13 @@ def create_call(call_id):
     thread_dict[call_id] = synthesize_thread
     return "Success"
 
+@app.route('/<call_id>/end')
+def finish_call(call_id):
+    synthesize_thread = thread_dict[call_id]
+    shutil.rmtree(f"bark/static/{call_id}")
+    free_threads.append(synthesize_thread)
+    return "Success"
+
 @app.route('/<call_id>/set_voice')
 def set_voice(call_id):
     voice = DEFAULT_VOICE

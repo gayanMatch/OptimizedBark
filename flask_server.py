@@ -96,7 +96,7 @@ def create_call(call_id):
     return "Success"
 
 @app.route('/<call_id>/end')
-def create_call(call_id):
+def finish_call(call_id):
     synthesize_thread = thread_dict[call_id]
     shutil.rmtree(synthesize_thread.directory)
     free_threads.append(synthesize_thread)
