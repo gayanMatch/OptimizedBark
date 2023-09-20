@@ -67,7 +67,7 @@ def show_entries():
     selected_file = DEFAULT_VOICE
     if request.args.get('selected_file'):
         selected_file = request.args.get('selected_file')
-    synthesize_thread.voice = selected_file[:-4]
+    synthesize_thread.voice = selected_file.replace('.npz', '')
     print(synthesize_thread.voice)
     return render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
@@ -82,7 +82,7 @@ def synthesize(call_id):
     shutil.rmtree(directory_path)
     os.mkdir(directory_path)
     thread_dict[call_id].synthesize_queue.append((text, False))
-    while not os.path.exists(f'{directory_path}/audio_0.mp3'):
+    while not os.path.exists(f'{directory_path}/audio_0.ogg'):
         time.sleep(0.01)
     url_root = request.url_root.replace('5000', '4000')
     return redirect(f"{url_root}{call_id}/play")

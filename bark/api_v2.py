@@ -212,10 +212,11 @@ def generate_audio(
             history_prompt=history_prompt,
             temp=0.5,
         )
+        # fine_tokens = coarse_tokens
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
         features = vocos.codes_to_features(audio_tokens_torch)
         audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
-        sf.write(f"bark_syn/audio_{index}.mp3", np.float32(audio_arr), 24000)
+        # sf.write(f"bark_syn/audio_{index}.mp3", np.float32(audio_arr), 24000)
         if last_audio is None:
             start = 0
             end_point = len(audio_arr) - int(0.2 * 24000)
@@ -232,8 +233,9 @@ def generate_audio(
             #     end_point = len(audio_arr)
             last_audio = audio_arr[:end_point]
         # print(start, end_point)
-        sf.write(f"{directory}/audio_{index}.mp3", np.float32(audio_arr[start:end_point]), 24000)
-        sf.write(f"{directory}/audio_{index}.wav", np.float32(audio_arr[start:end_point]), 24000)
+        # sf.write(f"{directory}/audio_{index}.mp3", np.float32(audio_arr[start:end_point]), 24000)
+        sf.write(f"{directory}/audio_{index}.ogg", np.float32(audio_arr[start:end_point]), 24000)
+        # sf.write(f"{directory}/audio_{index}.wav", np.float32(audio_arr[start:end_point]), 24000)
         full_generation = {
             "semantic_prompt": semantic_tokens,
             "coarse_prompt": coarse_tokens,
@@ -259,8 +261,8 @@ def generate_audio(
             initial_x_coarse_in=x_coarse_in,
             initial_n_step=n_step
         )
-        if cnt % 5 == 4:
-            last_audio, index = gen_audio_from_coarse(last_audio, index)
+        # if cnt % 5 == 4:
+        last_audio, index = gen_audio_from_coarse(last_audio, index)
         cnt += 1
     last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
         

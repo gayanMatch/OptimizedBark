@@ -1,37 +1,10 @@
 import os
 import time
 import shutil
-import soundfile as sf
-import nltk
-from bark.api_v2 import generate_audio, save_as_prompt
-from transformers import BertTokenizer
-from bark.generation import SAMPLE_RATE, preload_models, codec_decode, generate_coarse, generate_fine, generate_text_semantic
-
-
-
-def synthesize(text_prompt, directory="static", voice="en_fiery", index_=0):
-    shutil.rmtree(directory)
-    os.mkdir(directory)
-    start_time = time.time()
-    text = text_prompt.replace("\n", " ").strip()
-    # sentences = nltk.sent_tokenize(text)
-    print(start_time)
-    # for sentence in sentences:
-    #     index = generate_audio(sentence, history_prompt=voice.replace('.npz', ''), directory=directory, initial_index=index, silent=True)
-    index = generate_audio(text, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory)
-    # save_as_prompt(f'{directory}/prompt.npz', prompt)
-    # sf.write(f"{directory}/audio_0.mp3", audio, samplerate=SAMPLE_RATE)
-    file = open(f'{directory}/finish.lock', 'wt')
-    file.write("Finish")
-    file.close()
-    # generate_audio(text_prompt, history_prompt="en_fiery", directory=directory, initial_index=index, silent=True)
-    end_time = time.time()
-    duration = end_time - start_time
-    print(f"Time for syntesize: {duration}")
+from bark.synthesize import synthesize
 
 
 if __name__ == "__main__":
-    preload_models()
     print("Synthesize Ready")
     text_prompt = """
 It looks like you opted into one of our ads lookin' for information on how to scale your business using AI. Do you remember that?
@@ -43,7 +16,7 @@ Hello, I'm really excited about optimizing bark with Air AI.
     if sys.platform.startswith('win'):
         directory = 'static'
     else:
-        directory = 'bark/static/CA123'
+        directory = 'bark/static'
     # while True:
     #     synthesize(clip, directory=directory)
     #     # synthesize(test_clip, directory=directory)
