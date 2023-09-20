@@ -12,12 +12,13 @@ def file_stream(call_id):
         directory_path = f'static/{call_id}'
         # print(directory_path)
         while True:
-            path = f'{directory_path}/audio_{i}.ogg'
+            path = f'{directory_path}/audio_{i}.wav'
             # print(path)
             if os.path.exists(path):
                 i += 1
                 with open(path, "rb") as f:
-                    for chunk in iter(lambda: f.read(chunk_size), b""):  # 4096 bytes chunk size
+                    f.read(44)
+                    for chunk in iter(lambda: f.read(chunk_size), b""):  # 2048 bytes chunk size
                         yield chunk
                         time.sleep(0.005)
             elif not os.path.exists(f'{directory_path}/finish.lock'):
@@ -26,6 +27,6 @@ def file_stream(call_id):
                 i += 1
                 break
         print("Finished")
-    return Response(event_stream(), mimetype='audio/ogg')
+    return Response(event_stream(), mimetype='audio/wav')
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=4000)
