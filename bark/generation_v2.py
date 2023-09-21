@@ -44,7 +44,7 @@ models_devices = {}
 
 
 CONTEXT_WINDOW_SIZE = 1024
-
+CHUNK_SIZE = 5
 SEMANTIC_RATE_HZ = 49.9
 SEMANTIC_VOCAB_SIZE = 10_000
 
@@ -249,7 +249,7 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
     _clear_cuda_cache()
     if model_type == "text":
         tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
-        total_config = yaml.safe_load(open('semantic_config.yaml', 'rb'))
+        total_config = yaml.safe_load(open('semantic_config.yaml', 'rb')) if use_small else yaml.safe_load(open('semantic_config_large.yaml', 'rb'))
         kv_metadata = NetworkMetadata(variant=total_config['GPT2_VARIANT'], precision=Precision(fp16=total_config['fp16']),
                               other=GPT2Metadata(kv_cache=total_config['use_cache']))
         kv_gpt2_engine = GPT2TRTEngine(total_config['kv_engine_path'], kv_metadata)
@@ -332,7 +332,7 @@ def load_codec_model(use_gpu=True, force_reload=False):
 
 def preload_models(
     text_use_gpu=True,
-    text_use_small=True,
+    text_use_small=False,
     coarse_use_gpu=True,
     coarse_use_small=True,
     fine_use_gpu=True,
@@ -523,6 +523,8 @@ def generate_text_semantic(
                 pbar.update(n - pbar_state)
                 break
             x = torch.cat((x, item_next[None]), dim=1)
+            if n % ( CHUNK_SIZE * 20) == 27 and n > 20 * CHUNK_SIZE:
+                yield x.detach().cpu().numpy().squeeze()[256 + 256 + 1 :], False
             tot_generated_duration_s += 1 / SEMANTIC_RATE_HZ
             if max_gen_duration_s is not None and tot_generated_duration_s > max_gen_duration_s:
                 pbar.update(n - pbar_state)
@@ -545,7 +547,7 @@ def generate_text_semantic(
         model.to("cpu")
     assert all(0 <= out) and all(out < SEMANTIC_VOCAB_SIZE)
     _clear_cuda_cache()
-    return out
+    yield out, True
 
 
 def _flatten_codebooks(arr, offset_size=CODEBOOK_SIZE):
@@ -564,6 +566,7 @@ COARSE_INFER_TOKEN = 12_050
 
 def generate_coarse(
     x_semantic,
+    is_finished,
     history_prompt=None,
     temp=0.7,
     top_k=None,
@@ -572,7 +575,8 @@ def generate_coarse(
     max_coarse_history=630,  # min 60 (faster), max 630 (more context)
     sliding_window_len=60,
     use_kv_caching=False,
-    stream=False
+    initial_n_step=0,
+    initial_x_coarse_in=None
 ):
     """Generate coarse audio codes from semantic tokens."""
     assert (
@@ -636,12 +640,15 @@ def generate_coarse(
         model.to(models_devices["coarse"])
     device = next(model.parameters()).device
     # start loop
-    n_steps = int(
-        round(
-            np.floor(len(x_semantic) * semantic_to_coarse_ratio / N_COARSE_CODEBOOKS)
-            * N_COARSE_CODEBOOKS
+    if is_finished:
+        n_steps = int(
+            round(
+                np.floor(len(x_semantic) * semantic_to_coarse_ratio / N_COARSE_CODEBOOKS)
+                * N_COARSE_CODEBOOKS
+            )
         )
-    )
+    else:
+        n_steps = 1e4
     assert n_steps > 0 and n_steps % N_COARSE_CODEBOOKS == 0
     x_semantic = np.hstack([x_semantic_history, x_semantic]).astype(np.int32)
     x_coarse = x_coarse_history.astype(np.int32)
@@ -649,8 +656,10 @@ def generate_coarse(
     with _inference_mode():
         x_semantic_in = torch.from_numpy(x_semantic)[None].to(device)
         x_coarse_in = torch.from_numpy(x_coarse)[None].to(device)
+        if initial_x_coarse_in is not None:
+            x_coarse_in = initial_x_coarse_in
         n_window_steps = int(np.ceil(n_steps / sliding_window_len))
-        n_step = 0
+        n_step = initial_n_step
         for i_win in tqdm.tqdm(range(n_window_steps), total=n_window_steps, disable=silent):
             semantic_idx = base_semantic_idx + int(round(n_step / semantic_to_coarse_ratio))
             # pad from right side
@@ -716,24 +725,19 @@ def generate_coarse(
                 del logits, relevant_logits, probs, item_next
                 n_step += 1
             del x_in
-            if i_win % 5 == 4 and i_win > 2 and stream:
-                gen_coarse_arr = x_coarse_in.detach().cpu().numpy().squeeze()[len(x_coarse_history):]
-                gen_coarse_audio_arr = gen_coarse_arr.reshape(-1, N_COARSE_CODEBOOKS).T - SEMANTIC_VOCAB_SIZE
-                for n in range(1, N_COARSE_CODEBOOKS):
-                    gen_coarse_audio_arr[n, :] -= n * CODEBOOK_SIZE
-                _clear_cuda_cache()
-                yield gen_coarse_audio_arr
+            if not is_finished and i_win == CHUNK_SIZE - 1:
+                break
         del x_semantic_in
     if OFFLOAD_CPU:
         model.to("cpu")
     gen_coarse_arr = x_coarse_in.detach().cpu().numpy().squeeze()[len(x_coarse_history) :]
-    del x_coarse_in
-    assert len(gen_coarse_arr) == n_steps
+    # del x_coarse_in
+    # assert len(gen_coarse_arr) == n_steps
     gen_coarse_audio_arr = gen_coarse_arr.reshape(-1, N_COARSE_CODEBOOKS).T - SEMANTIC_VOCAB_SIZE
     for n in range(1, N_COARSE_CODEBOOKS):
         gen_coarse_audio_arr[n, :] -= n * CODEBOOK_SIZE
     _clear_cuda_cache()
-    yield gen_coarse_audio_arr
+    return gen_coarse_audio_arr, x_coarse_in, n_step
 
 
 def generate_fine(

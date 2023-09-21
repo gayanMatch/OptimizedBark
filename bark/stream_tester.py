@@ -4,7 +4,7 @@ from flask import Flask, Response
 
 app = Flask(__name__)
 
-@app.route('/file')
+@app.route(f'/file')
 def file_stream():
     def event_stream():
         i = 0
@@ -12,20 +12,20 @@ def file_stream():
         directory_path = 'static'
         # print(directory_path)
         while True:
-            path = f'{directory_path}/audio_{i}.mp3'
-            # print(path)
+            path = f'{directory_path}/audio_{i}.ogg'
+            print(path)
             if os.path.exists(path):
                 i += 1
                 with open(path, "rb") as f:
                     for chunk in iter(lambda: f.read(chunk_size), b""):  # 4096 bytes chunk size
                         yield chunk
-                        time.sleep(0.01)
+                        time.sleep(0.005)
             elif not os.path.exists(f'{directory_path}/finish.lock'):
-                time.sleep(0.01)
+                time.sleep(0.03)
             else:
                 i += 1
                 break
         print("Finished")
-    return Response(event_stream(), mimetype='audio/mpeg')
+    return Response(event_stream(), mimetype='audio/ogg')
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=4000)

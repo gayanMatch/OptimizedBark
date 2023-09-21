@@ -25,7 +25,7 @@ formatter = logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 root.addHandler(ch)
-DEFAULT_VOICE = 'en_fiery.npz'
+DEFAULT_VOICE = 'en_fiery'
 synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
 synthesize_thread.start()
 
@@ -62,7 +62,7 @@ def show_entries():
     selected_file = DEFAULT_VOICE
     if request.args.get('selected_file'):
         selected_file = request.args.get('selected_file')
-    synthesize_thread.voice = selected_file[:-4]
+    synthesize_thread.voice = selected_file.replace('.npz', '')
     print(synthesize_thread.voice)
     return render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
@@ -76,9 +76,10 @@ def synthesize():
     shutil.rmtree(directory_path)
     os.mkdir(directory_path)
     synthesize_thread.synthesize_queue.append((text, False))
-    while not os.path.exists(f'{directory_path}/audio_0.mp3'):
+    while not os.path.exists(f'{directory_path}/audio_0.ogg'):
         time.sleep(0.01)
-    return redirect("http://138.2.225.7:4000/file")
+    url_root = request.url_root.replace('5000', '4000')
+    return redirect(f"{url_root}file")
 
 
 @app.route('/file')
@@ -113,6 +114,7 @@ def serve_audio(filename):
 
 def stream_file(file_name, chunk_size=1024):
     with open(file_name, 'rb') as file:
+        file.seek(512)
         while True:
             chunk = file.read(chunk_size)
             if not chunk:

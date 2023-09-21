@@ -96,8 +96,10 @@ class GPT2ModelTRTConfig(NNConfig):
         TARGET_MODELS[3]: 48,
         TARGET_MODELS[4]: 28,
         'bark': 12,
+        'bark_large': 24,
         'bark_no_cache': 12,
         'bark_coarse': 12,
+        'bark_coarse_large': 24,
         'bark_coarse_no_cache': 12
     }
 
@@ -110,8 +112,10 @@ class GPT2ModelTRTConfig(NNConfig):
         TARGET_MODELS[3]: 50,
         TARGET_MODELS[4]: 50,
         'bark': 512 + 768,
+        'bark_large': 512 + 768,
         'bark_no_cache': 512 + 768,
         'bark_coarse': 946,
+        'bark_coarse_large': 946,
         'bark_coarse_no_cache': 946
     }
 
@@ -122,8 +126,10 @@ class GPT2ModelTRTConfig(NNConfig):
         TARGET_MODELS[3]: 0,
         TARGET_MODELS[4]: 0,
         'bark': 0,
+        'bark_large': 0,
         'bark_no_cache':0,
         'bark_coarse': 0,
+        'bark_coarse_large': 0,
         'bark_coarse_no_cache': 0
     }
 

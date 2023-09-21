@@ -2,14 +2,14 @@ from typing import Dict, Optional, Union
 import soundfile as sf
 import numpy as np
 import time
-from .generation import codec_decode, generate_coarse, generate_fine, generate_text_semantic
+from .generation_v2 import codec_decode, generate_coarse, generate_fine, generate_text_semantic
 
 from vocos import Vocos
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
 
-def detect_last_silence_index(audio_data, sr=24000, threshold=0.0015, min_silence=25):
+def detect_last_silence_index(audio_data, sr=24000, threshold=0.04, min_silence=20):
     silence_start = None
     silence_count = 0
     min_silent_samples = (sr * min_silence) // 1000
@@ -184,6 +184,8 @@ def generate_audio(
     waveform_temp: float = 0.7,
     silent: bool = False,
     output_full: bool = False,
+    directory=None,
+    initial_index=0
 ):
     """Generate audio array from input text.
 
@@ -199,49 +201,127 @@ def generate_audio(
         numpy audio array at sample frequency 24khz
     """
     print(text)
-    semantic_tokens = text_to_semantic(
+    last_audio = None
+    index = initial_index
+    x_coarse_in = None
+    n_step = 0
+    cnt = 0
+    def gen_audio_from_coarse(last_audio, index, is_last=False):
+        fine_tokens = generate_fine(
+            coarse_tokens,
+            history_prompt=history_prompt,
+            temp=0.5,
+        )
+        # fine_tokens = coarse_tokens
+        audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
+        features = vocos.codes_to_features(audio_tokens_torch)
+        audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
+        # sf.write(f"bark_syn/audio_{index}.mp3", np.float32(audio_arr), 24000)
+        if last_audio is None:
+            start = 0
+            end_point = len(audio_arr) - int(0.2 * 24000)
+            # end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
+            # if end_point < start + 30000:
+            #     end_point = len(audio_arr)
+            last_audio = audio_arr[:end_point]
+        else:
+            start = len(last_audio)
+            audio_arr[:len(last_audio)] = last_audio
+            # end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
+            end_point = len(audio_arr) - int(0.2 * 24000) if not is_last else len(audio_arr)
+            # if end_point < start + 30000:
+            #     end_point = len(audio_arr)
+            last_audio = audio_arr[:end_point]
+        # print(start, end_point)
+        # sf.write(f"{directory}/audio_{index}.mp3", np.float32(audio_arr[start:end_point]), 24000)
+        sf.write(f"{directory}/audio_{index}.ogg", np.float32(audio_arr[start:end_point]), 24000)
+        # sf.write(f"{directory}/audio_{index}.wav", np.float32(audio_arr[start:end_point]), 24000)
+        full_generation = {
+            "semantic_prompt": semantic_tokens,
+            "coarse_prompt": coarse_tokens,
+            "fine_prompt": fine_tokens,
+        }
+        save_as_prompt(f"{directory}/prompt_{index}.npz", full_generation)
+        print(f"{directory}/audio_{index}.mp3", time.time())
+        index += 1
+        return last_audio, index
+    for semantic_tokens, is_finished in text_to_semantic(
         text,
         history_prompt=history_prompt,
         temp=text_temp,
         silent=silent,
-    )
-    out = semantic_to_waveform(
-        semantic_tokens,
-        history_prompt=history_prompt,
-        temp=waveform_temp,
-        silent=silent,
-        output_full=output_full,
-    )
-    if output_full:
-        full_generation, audio_arr = out
-        return full_generation, audio_arr
-    else:
-        audio_arr = out
-    return audio_arr
+    ):
+        coarse_tokens, x_coarse_in, n_step = generate_coarse(
+            semantic_tokens,
+            is_finished,
+            history_prompt=history_prompt,
+            temp=waveform_temp,
+            silent=silent,
+            use_kv_caching=True,
+            initial_x_coarse_in=x_coarse_in,
+            initial_n_step=n_step
+        )
+        # if cnt % 5 == 4:
+        last_audio, index = gen_audio_from_coarse(last_audio, index)
+        cnt += 1
+    last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
+        
+    # print("Total Audio Length: ", len(audio_arr) / 24000)
+    return index
 
-def generate_audio_stream(
-    text: str,
-    history_prompt: Optional[Union[Dict, str]] = None,
-    text_temp: float = 0.7,
-    waveform_temp: float = 0.7,
-    silent: bool = False,
-    output_full: bool = False,
-    directory=None,
-    initial_index=0
+
+def generate_prompt(
+        text: str,
+        history_prompt: Optional[Union[Dict, str]] = None,
+        text_temp: float = 0.7,
+        waveform_temp: float = 0.7,
+        silent: bool = False,
 ):
+    """Generate audio array from input text.
+
+    Args:
+        text: text to be turned into audio
+        history_prompt: history choice for audio cloning
+        text_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
+        waveform_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
+        silent: disable progress bar
+        output_full: return full generation to be used as a history prompt
+
+    Returns:
+        numpy audio array at sample frequency 24khz
+    """
     print(text)
-    semantic_tokens = text_to_semantic(
-        text,
-        history_prompt=history_prompt,
-        temp=text_temp,
-        silent=silent,
-    )
-    return semantic_to_waveform_stream(
-        semantic_tokens,
-        history_prompt=history_prompt,
-        temp=waveform_temp,
-        silent=silent,
-        output_full=output_full,
-        directory=directory,
-        initial_index=initial_index
-    )
+    x_coarse_in = None
+    n_step = 0
+
+    def save_prompt_from_coarse():
+        fine_tokens = generate_fine(
+            coarse_tokens,
+            history_prompt=history_prompt,
+            temp=0.5,
+        )
+        # print(start, end_point)
+        full_generation = {
+            "semantic_prompt": semantic_tokens,
+            "coarse_prompt": coarse_tokens,
+            "fine_prompt": fine_tokens,
+        }
+        save_as_prompt(f"bark/assets/prompts/short/{history_prompt}.npz", full_generation)
+
+    for semantic_tokens, is_finished in text_to_semantic(
+            text,
+            history_prompt=history_prompt,
+            temp=text_temp,
+            silent=silent,
+    ):
+        coarse_tokens, x_coarse_in, n_step = generate_coarse(
+            semantic_tokens,
+            is_finished,
+            history_prompt=history_prompt,
+            temp=waveform_temp,
+            silent=silent,
+            use_kv_caching=True,
+            initial_x_coarse_in=x_coarse_in,
+            initial_n_step=n_step
+        )
+    save_prompt_from_coarse()

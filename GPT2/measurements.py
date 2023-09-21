@@ -24,16 +24,6 @@ import torch
 
 
 # from HuggingFace transformers
-from transformers.generation_logits_process import (
-    MinLengthLogitsProcessor,
-    LogitsProcessorList,
-    ForcedEOSTokenLogitsProcessor,
-)
-from transformers.generation_stopping_criteria import (
-    MaxLengthCriteria,
-    StoppingCriteriaList,
-)
-
 # TRT-HuggingFace
 from NNDF.general_utils import measure_python_inference_code
 from NNDF.torch_utils import use_cuda
