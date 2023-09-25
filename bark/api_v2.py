@@ -1,5 +1,5 @@
 from typing import Dict, Optional, Union
-import torchaudio
+import subprocess
 import soundfile as sf
 import numpy as np
 import time
@@ -216,16 +216,12 @@ def generate_audio(
         # fine_tokens = coarse_tokens
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
         features = vocos.codes_to_features(audio_tokens_torch)
-        audio_arr = torchaudio.functional.resample(
-            vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze(),
-            orig_freq=24000,
-            new_freq=8000
-        ).cpu().numpy()
+        audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze().cpu().numpy()
         # audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
         # sf.write(f"bark_syn/audio_{index}.mp3", np.float32(audio_arr), 24000)
         if last_audio is None:
             start = 0
-            end_point = len(audio_arr) - int(0.2 * 8000)
+            end_point = len(audio_arr) - int(0.2 * 24000)
             # end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
             # if end_point < start + 30000:
             #     end_point = len(audio_arr)
@@ -234,22 +230,16 @@ def generate_audio(
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
             # end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
-            end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
+            end_point = len(audio_arr) - int(0.2 * 24000) if not is_last else len(audio_arr)
             # if end_point < start + 30000:
             #     end_point = len(audio_arr)
             last_audio = audio_arr[:end_point]
         # print(start, end_point)
         # sf.write(f"{directory}/audio_{index}.mp3", np.float32(audio_arr[start:end_point]), 24000)
-        sf.write(f"{directory}/audio_{index}.ogg", np.float32(audio_arr[start:end_point]), 8000)
-
-        # Converting to µ-Law format
-        # pcm_mulaw_data = np.asarray(
-        #     np.sign(audio_arr[start:end_point]) * (np.log(1 + 255 * np.abs(audio_arr[start:end_point])) / np.log(256)),
-        #     dtype=np.float32
-        # )
-
-        # Saving it.
-        sf.write(f"{directory}/audio_{index}.wav", np.float32(audio_arr[start:end_point]), 8000, subtype='PCM_U8')
+        sf.write(f"{directory}/audio_{index}.ogg", np.float32(audio_arr[start:end_point]), 24000)
+        command = ['ffmpeg', '-i', f"{directory}/audio_{index}.ogg", '-ar', '8000', '-ac', '1', '-acodec', 'pcm_mulaw',
+                   '-f', 'wav', f"{directory}/audio_{index}.wav", "-y"]
+        subprocess.run(command, check=True)
         full_generation = {
             "semantic_prompt": semantic_tokens,
             "coarse_prompt": coarse_tokens,

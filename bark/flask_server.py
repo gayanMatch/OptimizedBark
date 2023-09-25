@@ -77,14 +77,14 @@ def synthesize(call_id):
     text = json_data['text']
     voice = json_data['voice']
     print(text)
-    directory_path = f'bark/static/{call_id}'
-    if os.path.exists(directory_path):
-        shutil.rmtree(directory_path)
-    os.mkdir(directory_path)
-    thread_dict[call_id].voice = voice
-    thread_dict[call_id].synthesize_queue.append((text, False))
-    while not os.path.exists(f'{directory_path}/audio_0.ogg'):
-        time.sleep(0.01)
+    # directory_path = f'bark/static/{call_id}'
+    # if os.path.exists(directory_path):
+    #     shutil.rmtree(directory_path)
+    # os.mkdir(directory_path)
+    # thread_dict[call_id].voice = voice
+    # thread_dict[call_id].synthesize_queue.append((text, False))
+    # while not os.path.exists(f'{directory_path}/audio_0.ogg'):
+    #     time.sleep(0.01)
     url_root = request.url_root.replace('5000', '4000')
     return redirect(f"{url_root}{call_id}/play")
 
