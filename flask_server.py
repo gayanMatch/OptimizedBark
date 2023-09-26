@@ -82,7 +82,7 @@ def synthesize(call_id):
     shutil.rmtree(directory_path)
     os.mkdir(directory_path)
     thread_dict[call_id].synthesize_queue.append((text, False))
-    while not os.path.exists(f'{directory_path}/audio_0.wav'):
+    while not os.path.exists(f'{directory_path}/audio_0.raw'):
         time.sleep(0.01)
     url_root = request.url_root.replace('5000', '4000')
     return redirect(f"{url_root}{call_id}/play")

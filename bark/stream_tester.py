@@ -12,14 +12,14 @@ def file_stream(call_id):
         directory_path = f'static/{call_id}'
         # print(directory_path)
         while True:
-            path = f'{directory_path}/audio_{i}.wav'
+            path = f'{directory_path}/audio_{i}.raw'
             print(path)
             if os.path.exists(path):
                 time.sleep(0.015)
                 i += 1
                 with open(path, "rb") as f:
                     print(path)
-                    f.read(92)
+                    # f.read(92)
                     for chunk in iter(lambda: f.read(chunk_size), b""):  # 2048 bytes chunk size
                         print(chunk[:20])
                         yield chunk

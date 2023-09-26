@@ -1,9 +1,22 @@
 from typing import Dict, Optional, Union
-import subprocess
+import torchaudio
 import soundfile as sf
 import numpy as np
 import time
 from .generation_v2 import codec_decode, generate_coarse, generate_fine, generate_text_semantic
+import audioop
+def numpy_audioop_helper(x, xdtype, func, width, ydtype):
+    '''helper function for using audioop buffer conversion in numpy'''
+    xi = np.asanyarray(x).astype(xdtype)
+    if np.any(x != xi):
+        xinfo = np.iinfo(xdtype)
+        raise ValueError("input must be %s [%d..%d]" % (xdtype, xinfo.min, xinfo.max))
+    y = np.frombuffer(func(xi.tobytes(), width), dtype=ydtype)
+    return y.reshape(xi.shape)
+def audioop_ulaw_compress(x):
+    return numpy_audioop_helper(x, np.int16, audioop.lin2ulaw, 2, np.uint8)
+def audioop_ulaw_expand(x):
+    return numpy_audioop_helper(x, np.uint8, audioop.ulaw2lin, 2, np.int16)
 
 from vocos import Vocos
 import torch
@@ -216,12 +229,16 @@ def generate_audio(
         # fine_tokens = coarse_tokens
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
         features = vocos.codes_to_features(audio_tokens_torch)
-        audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze().cpu().numpy()
+        audio_arr = torchaudio.functional.resample(
+            vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze(),
+            orig_freq=24000,
+            new_freq=8000
+        ).cpu().numpy()
         # audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
         # sf.write(f"bark_syn/audio_{index}.mp3", np.float32(audio_arr), 24000)
         if last_audio is None:
             start = 0
-            end_point = len(audio_arr) - int(0.2 * 24000)
+            end_point = len(audio_arr) - int(0.2 * 8000)
             # end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
             # if end_point < start + 30000:
             #     end_point = len(audio_arr)
@@ -230,16 +247,17 @@ def generate_audio(
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
             # end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
-            end_point = len(audio_arr) - int(0.2 * 24000) if not is_last else len(audio_arr)
+            end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
             # if end_point < start + 30000:
             #     end_point = len(audio_arr)
             last_audio = audio_arr[:end_point]
         # print(start, end_point)
         # sf.write(f"{directory}/audio_{index}.mp3", np.float32(audio_arr[start:end_point]), 24000)
-        sf.write(f"{directory}/audio_{index}.ogg", np.float32(audio_arr[start:end_point]), 24000)
-        command = ['ffmpeg', '-i', f"{directory}/audio_{index}.ogg", '-ar', '8000', '-ac', '1', '-acodec', 'pcm_mulaw',
-                   '-f', 'wav', f"{directory}/audio_{index}.wav", "-y"]
-        subprocess.run(command, check=True)
+        sf.write(f"{directory}/audio_{index}.ogg", np.float32(audio_arr[start:end_point]), 8000)
+        audio_mu = audioop_ulaw_compress(np.int16(audio_arr[start:end_point] * 2**15))
+        file = open(f"{directory}/audio_{index}.raw", 'wb')
+        file.write(audio_mu.tobytes())
+        file.close()
         full_generation = {
             "semantic_prompt": semantic_tokens,
             "coarse_prompt": coarse_tokens,
