@@ -234,37 +234,26 @@ def generate_audio(
             orig_freq=24000,
             new_freq=8000
         ).cpu().numpy()
-        # audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
-        # sf.write(f"bark_syn/audio_{index}.mp3", np.float32(audio_arr), 24000)
         if last_audio is None:
             start = 0
             end_point = len(audio_arr) - int(0.2 * 8000)
-            # end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
-            # if end_point < start + 30000:
-            #     end_point = len(audio_arr)
             last_audio = audio_arr[:end_point]
         else:
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
-            # end_point = detect_last_silence_index(audio_arr) if not is_last else len(audio_arr)
             end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
-            # if end_point < start + 30000:
-            #     end_point = len(audio_arr)
             last_audio = audio_arr[:end_point]
-        # print(start, end_point)
-        # sf.write(f"{directory}/audio_{index}.mp3", np.float32(audio_arr[start:end_point]), 24000)
-        sf.write(f"{directory}/audio_{index}.ogg", np.float32(audio_arr[start:end_point]), 8000)
         audio_mu = audioop_ulaw_compress(np.int16(audio_arr[start:end_point] * 2**15))
         file = open(f"{directory}/audio_{index}.raw", 'wb')
         file.write(audio_mu.tobytes())
         file.close()
-        full_generation = {
-            "semantic_prompt": semantic_tokens,
-            "coarse_prompt": coarse_tokens,
-            "fine_prompt": fine_tokens,
-        }
-        save_as_prompt(f"{directory}/prompt_{index}.npz", full_generation)
-        print(f"{directory}/audio_{index}.mp3", time.time())
+        # full_generation = {
+        #     "semantic_prompt": semantic_tokens,
+        #     "coarse_prompt": coarse_tokens,
+        #     "fine_prompt": fine_tokens,
+        # }
+        # save_as_prompt(f"{directory}/prompt_{index}.npz", full_generation)
+        print(f"{directory}/audio_{index}.raw", time.time())
         index += 1
         return last_audio, index
     for semantic_tokens, is_finished in text_to_semantic(
@@ -283,10 +272,8 @@ def generate_audio(
             initial_x_coarse_in=x_coarse_in,
             initial_n_step=n_step
         )
-        # if cnt % 5 == 4:
-        last_audio, index = gen_audio_from_coarse(last_audio, index)
-        cnt += 1
-    last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
+        last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=is_finished)
+    # last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
         
     # print("Total Audio Length: ", len(audio_arr) / 24000)
     return index

@@ -24,10 +24,12 @@ def file_stream(call_id):
                         print(chunk[:20])
                         yield chunk
                         time.sleep(0.015)
+                os.remove(path)
             elif not os.path.exists(f'{directory_path}/finish.lock'):
                 time.sleep(0.03)
             else:
                 i += 1
+                os.remove(f'{directory_path}/finish.lock')
                 break
         print("Finished")
     return Response(event_stream(), mimetype='application/octet-stream')

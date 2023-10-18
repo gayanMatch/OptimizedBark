@@ -7,6 +7,7 @@ import numpy as np
 from flask import Flask, render_template, Response, send_file, send_from_directory, request, jsonify, redirect, stream_with_context, flash
 import sys
 from werkzeug.utils import secure_filename
+import uuid
 # import librosa
 # Tornado web server
 from tornado.wsgi import WSGIContainer
@@ -73,18 +74,29 @@ def show_entries():
 
 @app.route('/<call_id>/synthesize', methods=["POST"])
 def synthesize(call_id):
+    call_id = "CA123" if port == 5000 else "CA124"
+    # call_id = uuid.uuid4().hex
+    if len(thread_dict.keys()) == 0:
+        synthesize_thread = free_threads.pop()
+        synthesize_thread.directory = f"bark/static/{call_id}"
+        os.makedirs(f"bark/static/{call_id}", exist_ok=True)
+        thread_dict[call_id] = synthesize_thread
     data = request.get_json()
     text = data['text']
     voice = data['voice']
     thread_dict[call_id].voice = voice.replace('.npz', '')
     print(f"Text: {text}, Voice: {voice}")
     directory_path = f'bark/static/{call_id}'
+    print("#" * 50)
+    print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
+    print(text)
+    print("#" * 50)
     shutil.rmtree(directory_path)
     os.mkdir(directory_path)
     thread_dict[call_id].synthesize_queue.append((text, False))
     while not os.path.exists(f'{directory_path}/audio_0.raw'):
         time.sleep(0.01)
-    url_root = request.url_root.replace('5000', '4000')
+    url_root = request.url_root.replace(str(port), '4000')
     return redirect(f"{url_root}{call_id}/play")
 
 @app.route('/<call_id>/start')
@@ -147,7 +159,7 @@ def stream_file(file_name, chunk_size=1024):
 
 # launch a Tornado server with HTTPServer.
 if __name__ == "__main__":
-    port = 5000
+    port = 5000 if len(sys.argv) < 2 else int(sys.argv[1])
     http_server = HTTPServer(WSGIContainer(app))
     logging.debug("Started Server, Kindly visit http://0.0.0.0:" + str(port))
     http_server.listen(port, address='0.0.0.0')
