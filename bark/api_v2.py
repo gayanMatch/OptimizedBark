@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Optional, Union
 import torchaudio
 import soundfile as sf
@@ -244,6 +245,7 @@ def generate_audio(
             end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
             last_audio = audio_arr[:end_point]
         audio_mu = audioop_ulaw_compress(np.int16(audio_arr[start:end_point] * 2**15))
+        os.makedirs(directory, exist_ok=True)
         file = open(f"{directory}/audio_{index}.raw", 'wb')
         file.write(audio_mu.tobytes())
         file.close()

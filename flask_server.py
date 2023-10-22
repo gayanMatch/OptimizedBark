@@ -27,13 +27,10 @@ formatter = logging.Formatter(
 ch.setFormatter(formatter)
 root.addHandler(ch)
 DEFAULT_VOICE = 'test'
-
+CALL_INDEX = 0
 free_threads = []
-for i in range(1):
-    synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
-    synthesize_thread.start()
-    free_threads.append(synthesize_thread)
-thread_dict = {}
+synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
+synthesize_thread.start()
 
 
 # Initialize Flask.
@@ -74,45 +71,39 @@ def show_entries():
 
 @app.route('/<call_id>/synthesize', methods=["POST"])
 def synthesize(call_id):
-    call_id = "CA123" if port == 5000 else "CA124"
-    # call_id = uuid.uuid4().hex
-    if len(thread_dict.keys()) == 0:
-        synthesize_thread = free_threads.pop()
-        synthesize_thread.directory = f"bark/static/{call_id}"
-        os.makedirs(f"bark/static/{call_id}", exist_ok=True)
-        thread_dict[call_id] = synthesize_thread
+    global CALL_INDEX
+    # call_id = "CA123" if port == 5000 else "CA124"
+    call_id = f"CA{CALL_INDEX}"
     data = request.get_json()
     text = data['text']
     voice = data['voice']
-    thread_dict[call_id].voice = voice.replace('.npz', '')
-    print(f"Text: {text}, Voice: {voice}")
+    synthesize_thread.voice = voice.replace('.npz', '')
     directory_path = f'bark/static/{call_id}'
     print("#" * 50)
-    print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
+    # print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
     print(text)
     print("#" * 50)
-    shutil.rmtree(directory_path)
-    os.mkdir(directory_path)
-    thread_dict[call_id].synthesize_queue.append((text, False))
+    synthesize_thread.synthesize_queue.append((text, f"bark/static/{call_id}"))
     while not os.path.exists(f'{directory_path}/audio_0.raw'):
         time.sleep(0.01)
     url_root = request.url_root.replace(str(port), '4000')
+    CALL_INDEX += 1
     return redirect(f"{url_root}{call_id}/play")
 
-@app.route('/<call_id>/start')
-def create_call(call_id):
-    synthesize_thread = free_threads.pop()
-    synthesize_thread.directory = f"bark/static/{call_id}"
-    os.makedirs(f"bark/static/{call_id}", exist_ok=True)
-    thread_dict[call_id] = synthesize_thread
-    return "Success"
-
-@app.route('/<call_id>/end')
-def finish_call(call_id):
-    synthesize_thread = thread_dict[call_id]
-    shutil.rmtree(synthesize_thread.directory)
-    free_threads.append(synthesize_thread)
-    return "Success"
+# @app.route('/<call_id>/start')
+# def create_call(call_id):
+#     synthesize_thread = free_threads.pop()
+#     synthesize_thread.directory = f"bark/static/{call_id}"
+#     os.makedirs(f"bark/static/{call_id}", exist_ok=True)
+#     thread_dict[call_id] = synthesize_thread
+#     return "Success"
+#
+# @app.route('/<call_id>/end')
+# def finish_call(call_id):
+#     synthesize_thread = thread_dict[call_id]
+#     shutil.rmtree(synthesize_thread.directory)
+#     free_threads.append(synthesize_thread)
+#     return "Success"
 
 
     # def generate():

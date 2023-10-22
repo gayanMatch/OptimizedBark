@@ -26,12 +26,11 @@ def synthesize(text_prompt, directory="static", voice="en_fiery"):
         syn_sentences.append(last_sentence)
 
     for sentence in syn_sentences:
-        if word_count(sentence) < 7:
-            if not os.path.exists(f"bark/assets/prompts/short/{voice}.npz"):
-                synthesize_prompt(voice)
-            index = generate_audio(sentence, history_prompt=f"short/{voice}", text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index)
-        else:
-            index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index)
+        if sentence:
+            if word_count(sentence) < 7:
+                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index)
+            else:
+                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index)
     file = open(f'{directory}/finish.lock', 'wt')
     file.write("Finish")
     file.close()

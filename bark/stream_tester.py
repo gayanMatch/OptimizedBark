@@ -18,10 +18,10 @@ def file_stream(call_id):
                 time.sleep(0.015)
                 i += 1
                 with open(path, "rb") as f:
-                    print(path)
+                    print("Reading", path)
                     # f.read(92)
                     for chunk in iter(lambda: f.read(chunk_size), b""):  # 2048 bytes chunk size
-                        print(chunk[:20])
+                        # print(chunk[:20])
                         yield chunk
                         time.sleep(0.015)
                 os.remove(path)
@@ -31,6 +31,7 @@ def file_stream(call_id):
                 i += 1
                 os.remove(f'{directory_path}/finish.lock')
                 break
+        os.rmdir(f'{directory_path}')
         print("Finished")
     return Response(event_stream(), mimetype='application/octet-stream')
 if __name__ == '__main__':

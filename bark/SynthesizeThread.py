@@ -1,4 +1,5 @@
 import time
+import os
 from threading import Thread
 from bark.synthesize import synthesize, synthesize_prompt
 class SynthesizeThread(Thread):
@@ -14,11 +15,10 @@ class SynthesizeThread(Thread):
             if self.synthesize_queue:
                 print("Synthesis Started: ", time.time())
                 self.isWorking = True
-                for sentence, is_voice_prompt in self.synthesize_queue:
-                    if is_voice_prompt:
-                        synthesize_prompt(sentence)
-                    else:
-                        synthesize(sentence, directory=self.directory, voice=self.voice)
+
+                for sentence, directory in self.synthesize_queue:
+                    print("Starting Synthesis")
+                    synthesize(sentence, directory=directory, voice=self.voice)
                     # time.sleep(2)
                     print("Synthesize Finished:", time.time())
                     print("Synthesize Finished:", sentence)
