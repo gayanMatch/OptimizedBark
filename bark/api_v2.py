@@ -1,4 +1,5 @@
 import os
+import shutil
 from typing import Dict, Optional, Union
 import torchaudio
 import soundfile as sf
@@ -246,6 +247,9 @@ def generate_audio(
             last_audio = audio_arr[:end_point]
         audio_mu = audioop_ulaw_compress(np.int16(audio_arr[start:end_point] * 2**15))
         os.makedirs(directory, exist_ok=True)
+        if index == 0:
+            shutil.copy("bark/assets/header.raw", f"{directory}/audio_0.raw")
+            index += 1
         file = open(f"{directory}/audio_{index}.raw", 'wb')
         file.write(audio_mu.tobytes())
         file.close()

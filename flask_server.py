@@ -69,83 +69,23 @@ def show_entries():
     print(synthesize_thread.voice)
     return render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
-@app.route('/<call_id>/synthesize', methods=["POST"])
-def synthesize(call_id):
+@app.route('/synthesize', methods=["POST"])
+def synthesize():
     global CALL_INDEX
     # call_id = "CA123" if port == 5000 else "CA124"
     call_id = f"CA{CALL_INDEX}"
-    data = request.get_json()
-    text = data['text']
-    voice = data['voice']
-    synthesize_thread.voice = voice.replace('.npz', '')
+    text = request.form['text']
     directory_path = f'bark/static/{call_id}'
     print("#" * 50)
     # print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
     print(text)
     print("#" * 50)
     synthesize_thread.synthesize_queue.append((text, f"bark/static/{call_id}"))
-    while not os.path.exists(f'{directory_path}/audio_0.raw'):
+    while not os.path.exists(f'{directory_path}/audio_1.raw'):
         time.sleep(0.01)
     url_root = request.url_root.replace(str(port), '4000')
     CALL_INDEX += 1
     return redirect(f"{url_root}{call_id}/play")
-
-# @app.route('/<call_id>/start')
-# def create_call(call_id):
-#     synthesize_thread = free_threads.pop()
-#     synthesize_thread.directory = f"bark/static/{call_id}"
-#     os.makedirs(f"bark/static/{call_id}", exist_ok=True)
-#     thread_dict[call_id] = synthesize_thread
-#     return "Success"
-#
-# @app.route('/<call_id>/end')
-# def finish_call(call_id):
-#     synthesize_thread = thread_dict[call_id]
-#     shutil.rmtree(synthesize_thread.directory)
-#     free_threads.append(synthesize_thread)
-#     return "Success"
-
-
-    # def generate():
-    #     with open(f'{directory_path}/{filename}', "rb") as fwav:
-    #         data = fwav.read(1024)
-    #         while data:
-    #             yield data
-    #             data = fwav.read(1024)
-    #
-    # if os.path.exists(f'{directory_path}/{filename}'):
-    #     return Response(generate(), mimetype="audio/wav")
-    # else:
-    #     return send_from_directory('static', filename)
-
-def stream_file(file_name, chunk_size=1024):
-    with open(file_name, 'rb') as file:
-        while True:
-            chunk = file.read(chunk_size)
-            if not chunk:
-                break
-            yield chunk
-
-# @app.route('/stream_file')
-# def serve_sse():
-#     def event_stream():
-#         i = 0
-#         chunk_size = 1024
-#         directory_path = 'bark/static'
-#         while True:
-#             path = f'{directory_path}/audio_{i}.wav'
-#             print(path)
-#             if os.path.exists(path):
-#                 i += 1
-#                 for chunk in stream_file(path):
-#                     yield 'data: %s\n\n' % chunk
-#             elif synthesize_thread.isWorking:
-#                 while not os.path.exists(path):
-#                     time.sleep(0.01)
-#             else:
-#                 i += 1
-#                 break
-#     return Response(event_stream(), mimetype="text/event-stream")
 
 
 # launch a Tornado server with HTTPServer.
