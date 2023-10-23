@@ -26,8 +26,13 @@ formatter = logging.Formatter(
 ch.setFormatter(formatter)
 root.addHandler(ch)
 DEFAULT_VOICE = 'en_fiery'
-synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
-synthesize_thread.start()
+
+free_threads = []
+for i in range(1):
+    synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
+    synthesize_thread.start()
+    free_threads.append(synthesize_thread)
+thread_dict = {}
 
 
 # Initialize Flask.
@@ -66,20 +71,48 @@ def show_entries():
     print(synthesize_thread.voice)
     return render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
+@app.route('/<call_id>/synthesize', methods=["POST"])
+def synthesize(call_id):
+    json_data = request.get_json()
+    text = json_data['text']
+    voice = json_data['voice']
+    print(text)
+    # directory_path = f'bark/static/{call_id}'
+    # if os.path.exists(directory_path):
+    #     shutil.rmtree(directory_path)
+    # os.mkdir(directory_path)
+    # thread_dict[call_id].voice = voice
+    # thread_dict[call_id].synthesize_queue.append((text, False))
+    # while not os.path.exists(f'{directory_path}/audio_0.ogg'):
+    #     time.sleep(0.01)
+    url_root = request.url_root.replace('5000', '4000')
+    return redirect(f"{url_root}{call_id}/play")
+
+@app.route('/<call_id>/start')
+def create_call(call_id):
+    synthesize_thread = free_threads.pop()
+    synthesize_thread.directory = f"bark/static/{call_id}"
+    os.makedirs(f"bark/static/{call_id}", exist_ok=True)
+    thread_dict[call_id] = synthesize_thread
+    return "Success"
+
+@app.route('/<call_id>/end')
+def finish_call(call_id):
+    synthesize_thread = thread_dict[call_id]
+    shutil.rmtree(f"bark/static/{call_id}")
+    free_threads.append(synthesize_thread)
+    return "Success"
+
+@app.route('/<call_id>/set_voice')
+def set_voice(call_id):
+    voice = DEFAULT_VOICE
+    if request.args.get('voice'):
+        voice = request.args.get('voice')
+    thread_dict[call_id].voice = voice.replace('.npz', '')
+    return "Success"
 
 # Route to synthesize
-@app.route('/synthesize', methods=["POST"])
-def synthesize():
-    text = request.form['text']
-    print(text)
-    directory_path = 'bark/static'
-    shutil.rmtree(directory_path)
-    os.mkdir(directory_path)
-    synthesize_thread.synthesize_queue.append((text, False))
-    while not os.path.exists(f'{directory_path}/audio_0.ogg'):
-        time.sleep(0.01)
-    url_root = request.url_root.replace('5000', '4000')
-    return redirect(f"{url_root}file")
+
 
 
 @app.route('/file')

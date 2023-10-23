@@ -7,6 +7,7 @@ import numpy as np
 from flask import Flask, render_template, Response, send_file, send_from_directory, request, jsonify, redirect, stream_with_context, flash
 import sys
 from werkzeug.utils import secure_filename
+import uuid
 # import librosa
 # Tornado web server
 from tornado.wsgi import WSGIContainer
@@ -25,7 +26,9 @@ formatter = logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 root.addHandler(ch)
-DEFAULT_VOICE = 'en_fiery'
+DEFAULT_VOICE = 'test'
+CALL_INDEX = 0
+free_threads = []
 synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
 synthesize_thread.start()
 
@@ -66,40 +69,43 @@ def show_entries():
     print(synthesize_thread.voice)
     return render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
-
-# Route to synthesize
-@app.route('/synthesize', methods=["POST"])
-def synthesize():
-    text = request.form['text']
+@app.route('/<call_id>/synthesize', methods=["POST"])
+def synthesize(call_id):
+    global CALL_INDEX
+    # call_id = "CA123" if port == 5000 else "CA124"
+    call_id = f"CA{CALL_INDEX}"
+    data = request.get_json()
+    text = data['text']
+    voice = data['voice']
+    synthesize_thread.voice = voice.replace('.npz', '')
+    directory_path = f'bark/static/{call_id}'
+    print("#" * 50)
+    # print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
     print(text)
-    directory_path = 'bark/static'
-    shutil.rmtree(directory_path)
-    os.mkdir(directory_path)
-    synthesize_thread.synthesize_queue.append((text, False))
-    while not os.path.exists(f'{directory_path}/audio_0.ogg'):
+    print("#" * 50)
+    synthesize_thread.synthesize_queue.append((text, f"bark/static/{call_id}"))
+    while not os.path.exists(f'{directory_path}/audio_0.raw'):
         time.sleep(0.01)
-    url_root = request.url_root.replace('5000', '4000')
-    return redirect(f"{url_root}file")
+    url_root = request.url_root.replace(str(port), '4000')
+    CALL_INDEX += 1
+    return redirect(f"{url_root}{call_id}/play")
+
+# @app.route('/<call_id>/start')
+# def create_call(call_id):
+#     synthesize_thread = free_threads.pop()
+#     synthesize_thread.directory = f"bark/static/{call_id}"
+#     os.makedirs(f"bark/static/{call_id}", exist_ok=True)
+#     thread_dict[call_id] = synthesize_thread
+#     return "Success"
+#
+# @app.route('/<call_id>/end')
+# def finish_call(call_id):
+#     synthesize_thread = thread_dict[call_id]
+#     shutil.rmtree(synthesize_thread.directory)
+#     free_threads.append(synthesize_thread)
+#     return "Success"
 
 
-@app.route('/file')
-def file_stream():
-    def generate():
-        with open("bark/audio.mp3", "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):  # 4096 bytes chunk size
-                print('xx')
-                yield chunk
-                time.sleep(0.1)
-    return Response(generate(), mimetype='audio/mpeg')
-
-
-@app.route('/audio/<path:filename>')
-def serve_audio(filename):
-    server_directory = 'static'
-    directory_path = 'bark/static'
-    while not os.path.exists(f'{directory_path}/{filename}') and synthesize_thread.isWorking:
-        time.sleep(0.01)
-    return send_from_directory(server_directory, filename)
     # def generate():
     #     with open(f'{directory_path}/{filename}', "rb") as fwav:
     #         data = fwav.read(1024)
@@ -114,7 +120,6 @@ def serve_audio(filename):
 
 def stream_file(file_name, chunk_size=1024):
     with open(file_name, 'rb') as file:
-        file.seek(512)
         while True:
             chunk = file.read(chunk_size)
             if not chunk:
@@ -145,7 +150,7 @@ def stream_file(file_name, chunk_size=1024):
 
 # launch a Tornado server with HTTPServer.
 if __name__ == "__main__":
-    port = 5000
+    port = 5000 if len(sys.argv) < 2 else int(sys.argv[1])
     http_server = HTTPServer(WSGIContainer(app))
     logging.debug("Started Server, Kindly visit http://0.0.0.0:" + str(port))
     http_server.listen(port, address='0.0.0.0')
