@@ -21,8 +21,101 @@ def audioop_ulaw_expand(x):
     return numpy_audioop_helper(x, np.uint8, audioop.ulaw2lin, 2, np.int16)
 
 from vocos import Vocos
+def generate_audio(
+    text: str,
+    history_prompt: Optional[Union[Dict, str]] = None,
+    text_temp: float = 0.7,
+    waveform_temp: float = 0.7,
+    silent: bool = False,
+    output_full: bool = False,
+    directory=None,
+    initial_index=0,
+    min_eos_p=0.2
+):
+    """Generate audio array from input text.
+
+    Args:
+        text: text to be turned into audio
+        history_prompt: history choice for audio cloning
+        text_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
+        waveform_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
+        silent: disable progress bar
+        output_full: return full generation to be used as a history prompt
+
+    Returns:
+        numpy audio array at sample frequency 24khz
+    """
+    print(text)
+    last_audio = None
+    index = initial_index
+    x_coarse_in = None
+    n_step = 0
+    cnt = 0
+    def gen_audio_from_coarse(last_audio, index, is_last=False):
+        fine_tokens = generate_fine(
+            coarse_tokens,
+            history_prompt=history_prompt,
+            temp=0.5,
+        )
+        # fine_tokens = coarse_tokens
+        audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
+        features = vocos.codes_to_features(audio_tokens_torch)
+        audio_arr = torchaudio.functional.resample(
+            vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze(),
+            orig_freq=24000,
+            new_freq=8000
+        ).cpu().numpy()
+        if last_audio is None:
+            start = 0
+            end_point = len(audio_arr) - int(0.2 * 8000)
+            last_audio = audio_arr[:end_point]
+        else:
+            start = len(last_audio)
+            audio_arr[:len(last_audio)] = last_audio
+            end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
+            last_audio = audio_arr[:end_point]
+        audio_mu = audioop_ulaw_compress(np.int16(audio_arr[start:end_point] * 2**15))
+        os.makedirs(directory, exist_ok=True)
+        if index == 0:
+            shutil.copy("bark/assets/header.raw", f"{directory}/audio_0.raw")
+            index += 1
+        file = open(f"{directory}/audio_{index}.raw", 'wb')
+        file.write(audio_mu.tobytes())
+        file.close()
+        # full_generation = {
+        #     "semantic_prompt": semantic_tokens,
+        #     "coarse_prompt": coarse_tokens,
+        #     "fine_prompt": fine_tokens,
+        # }
+        # save_as_prompt(f"{directory}/prompt_{index}.npz", full_generation)
+        print(f"{directory}/audio_{index}.raw", time.time())
+        index += 1
+        return last_audio, index
+    for semantic_tokens, is_finished in text_to_semantic(
+        text,
+        history_prompt=history_prompt,
+        temp=text_temp,
+        silent=silent,
+        min_eos_p=min_eos_p
+    ):
+        coarse_tokens, x_coarse_in, n_step = generate_coarse(
+            semantic_tokens,
+            is_finished,
+            history_prompt=history_prompt,
+            temp=waveform_temp,
+            silent=silent,
+            use_kv_caching=True,
+            initial_x_coarse_in=x_coarse_in,
+            initial_n_step=n_step
+        )
+        last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=is_finished)
+    # last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
+
+    # print("Total Audio Length: ", len(audio_arr) / 24000)
+    return index
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
 
 def detect_last_silence_index(audio_data, sr=24000, threshold=0.04, min_silence=20):
@@ -43,11 +136,13 @@ def detect_last_silence_index(audio_data, sr=24000, threshold=0.04, min_silence=
 
     return silence_start - silence_count // 2 if silence_start is not None else None
 
+
 def text_to_semantic(
     text: str,
     history_prompt: Optional[Union[Dict, str]] = None,
     temp: float = 0.7,
     silent: bool = False,
+    min_eos_p: float = 0.2
 ):
     """Generate semantic array from text.
 
@@ -65,10 +160,10 @@ def text_to_semantic(
         history_prompt=history_prompt,
         temp=temp,
         silent=silent,
-        use_kv_caching=True
+        use_kv_caching=True,
+        min_eos_p=min_eos_p
     )
     return x_semantic
-
 
 def semantic_to_waveform(
     semantic_tokens: np.ndarray,
@@ -184,6 +279,7 @@ def semantic_to_waveform_stream(
     print("Total Audio Length: ", len(audio_arr) / 24000)
     return index
 
+
 def save_as_prompt(filepath, full_generation):
     assert(filepath.endswith(".npz"))
     assert(isinstance(full_generation, dict))
@@ -191,98 +287,6 @@ def save_as_prompt(filepath, full_generation):
     assert("coarse_prompt" in full_generation)
     assert("fine_prompt" in full_generation)
     np.savez(filepath, **full_generation)
-
-
-def generate_audio(
-    text: str,
-    history_prompt: Optional[Union[Dict, str]] = None,
-    text_temp: float = 0.7,
-    waveform_temp: float = 0.7,
-    silent: bool = False,
-    output_full: bool = False,
-    directory=None,
-    initial_index=0
-):
-    """Generate audio array from input text.
-
-    Args:
-        text: text to be turned into audio
-        history_prompt: history choice for audio cloning
-        text_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
-        waveform_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
-        silent: disable progress bar
-        output_full: return full generation to be used as a history prompt
-
-    Returns:
-        numpy audio array at sample frequency 24khz
-    """
-    print(text)
-    last_audio = None
-    index = initial_index
-    x_coarse_in = None
-    n_step = 0
-    cnt = 0
-    def gen_audio_from_coarse(last_audio, index, is_last=False):
-        fine_tokens = generate_fine(
-            coarse_tokens,
-            history_prompt=history_prompt,
-            temp=0.5,
-        )
-        # fine_tokens = coarse_tokens
-        audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
-        features = vocos.codes_to_features(audio_tokens_torch)
-        audio_arr = torchaudio.functional.resample(
-            vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze(),
-            orig_freq=24000,
-            new_freq=8000
-        ).cpu().numpy()
-        if last_audio is None:
-            start = 0
-            end_point = len(audio_arr) - int(0.2 * 8000)
-            last_audio = audio_arr[:end_point]
-        else:
-            start = len(last_audio)
-            audio_arr[:len(last_audio)] = last_audio
-            end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
-            last_audio = audio_arr[:end_point]
-        audio_mu = audioop_ulaw_compress(np.int16(audio_arr[start:end_point] * 2**15))
-        os.makedirs(directory, exist_ok=True)
-        if index == 0:
-            shutil.copy("bark/assets/header.raw", f"{directory}/audio_0.raw")
-            index += 1
-        file = open(f"{directory}/audio_{index}.raw", 'wb')
-        file.write(audio_mu.tobytes())
-        file.close()
-        # full_generation = {
-        #     "semantic_prompt": semantic_tokens,
-        #     "coarse_prompt": coarse_tokens,
-        #     "fine_prompt": fine_tokens,
-        # }
-        # save_as_prompt(f"{directory}/prompt_{index}.npz", full_generation)
-        print(f"{directory}/audio_{index}.raw", time.time())
-        index += 1
-        return last_audio, index
-    for semantic_tokens, is_finished in text_to_semantic(
-        text,
-        history_prompt=history_prompt,
-        temp=text_temp,
-        silent=silent,
-    ):
-        coarse_tokens, x_coarse_in, n_step = generate_coarse(
-            semantic_tokens,
-            is_finished,
-            history_prompt=history_prompt,
-            temp=waveform_temp,
-            silent=silent,
-            use_kv_caching=True,
-            initial_x_coarse_in=x_coarse_in,
-            initial_n_step=n_step
-        )
-        last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=is_finished)
-    # last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
-        
-    # print("Total Audio Length: ", len(audio_arr) / 24000)
-    return index
 
 
 def generate_prompt(

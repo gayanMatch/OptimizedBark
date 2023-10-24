@@ -16,12 +16,12 @@ class SynthesizeThread(Thread):
                 print("Synthesis Started: ", time.time())
                 self.isWorking = True
 
-                for sentence, directory in self.synthesize_queue:
+                for args, directory in self.synthesize_queue:
                     print("Starting Synthesis")
-                    synthesize(sentence, directory=directory, voice=self.voice)
+                    synthesize(**args, directory=directory)
                     # time.sleep(2)
                     print("Synthesize Finished:", time.time())
-                    print("Synthesize Finished:", sentence)
+                    print("Synthesize Finished:", args["text_prompt"])
                 self.synthesize_queue = []
                 self.isWorking = False
             

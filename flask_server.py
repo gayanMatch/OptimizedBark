@@ -75,12 +75,21 @@ def synthesize():
     # call_id = "CA123" if port == 5000 else "CA124"
     call_id = f"CA{CALL_INDEX}"
     text = request.form['text']
+    voice = request.form['voice']
+    semantic_temp = request.form['semantic_temp']
+    coarse_temp = request.form['coarse_temp']
     directory_path = f'bark/static/{call_id}'
+    dictionary = {
+        "text_prompt": text,
+        "voice": voice.replace(".npz", ""),
+        "semantic_temp": float(semantic_temp),
+        "coarse_temp": float(coarse_temp)
+    }
     print("#" * 50)
     # print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
     print(text)
     print("#" * 50)
-    synthesize_thread.synthesize_queue.append((text, f"bark/static/{call_id}"))
+    synthesize_thread.synthesize_queue.append((dictionary, f"bark/static/{call_id}"))
     while not os.path.exists(f'{directory_path}/audio_1.raw'):
         time.sleep(0.01)
     url_root = request.url_root.replace(str(port), '4000')
@@ -91,6 +100,9 @@ def synthesize():
 # launch a Tornado server with HTTPServer.
 if __name__ == "__main__":
     port = 5000 if len(sys.argv) < 2 else int(sys.argv[1])
+    if os.path.exists("bark/static"):
+        shutil.rmtree("bark/static")
+    os.mkdir("bark/static")
     http_server = HTTPServer(WSGIContainer(app))
     logging.debug("Started Server, Kindly visit http://0.0.0.0:" + str(port))
     http_server.listen(port, address='0.0.0.0')

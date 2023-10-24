@@ -24,25 +24,26 @@
         </select>
     </form>
     <form action="/synthesize" method='POST'>
-        <table>
-            <style>
-                table {
-                    margin: auto;
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    bottom: 0;
-                    right: 0;
-                }
-            </style>
-            <tr>
-                <td>Text</td>
-                <td><textarea type="text" name="text" style="width: 500px; height: 100px;"> </textarea></td>
-            </tr>
-            <tr>
-                <td align="center"><input type="submit"></td>
-            </tr>
-        </table>
+        <style>
+        .form-style {
+            display: table;
+            margin: auto;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+        }
+        </style>
+        <div class="form-style">
+            <div>
+                <div>Text</div>
+                <div><textarea type="text" name="text" style="width: 500px; height: 100px;"></textarea></div>
+            </div>
+            <div style="text-align:center;">
+                <div><input type="submit"></div>
+            </div>
+        </div>
     </form>
 </body>
 
