@@ -150,6 +150,10 @@ def stream_file(file_name, chunk_size=1024):
 
 # launch a Tornado server with HTTPServer.
 if __name__ == "__main__":
+    directory_path = "bark/static"
+    if os.path.exists(directory_path):
+        shutil.rmtree(directory_path)
+    os.mkdir(directory_path)
     port = 5000 if len(sys.argv) < 2 else int(sys.argv[1])
     http_server = HTTPServer(WSGIContainer(app))
     logging.debug("Started Server, Kindly visit http://0.0.0.0:" + str(port))
