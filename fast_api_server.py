@@ -4,11 +4,10 @@ import time
 import numpy as np
 import sys
 import uuid
+import uvicorn
 # Tornado web server
-from flask import Flask, render_template, Response, send_file, send_from_directory, request, jsonify, redirect, stream_with_context, flash
-from tornado.wsgi import WSGIContainer
-from tornado.httpserver import HTTPServer
-from tornado.ioloop import IOLoop
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from bark.SynthesizeThread import SynthesizeThread
 
 DEFAULT_VOICE = 'test'
@@ -19,32 +18,28 @@ synthesize_thread.start()
 
 
 # Initialize Flask.
-app = Flask(__name__)
-@app.route('/<call_id>/synthesize', methods=["POST"])
-def synthesize(call_id):
+app = FastAPI()
+
+
+@app.post('/<call_id>/synthesize')
+async def synthesize(call_id: str, request: Request):
     global CALL_INDEX
     # call_id = "CA123" if port == 5000 else "CA124"
     call_id = f"CA{CALL_INDEX}"
-    data = request.get_json()
-    text = data['text']
-    voice = data['voice']
-    synthesize_thread.voice = voice.replace('.npz', '')
-    directory_path = f'bark/static/{call_id}'
-    print("#" * 50)
-    # print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
-    print(text)
-    print("#" * 50)
-    synthesize_thread.synthesize_queue.append((text, f"bark/static/{call_id}"))
-    while not os.path.exists(f'{directory_path}/audio_0.raw'):
-        time.sleep(0.01)
-    url_root = request.url_root.replace(str(port), '4000')
-    CALL_INDEX += 1
-    return redirect(f"{url_root}{call_id}/play")
+    data = await request.json()
+    text = data.pop("text")
+    voice = data.pop("voice")
+    stream = synthesize_thread.add_request(text, voice)
+    async def stream_results():
+        async for out in stream:
+            yield out
+    return StreamingResponse(stream_results(), media_type="application/octet-stream")
 
 # launch a Tornado server with HTTPServer.
 if __name__ == "__main__":
-    port = 5000 if len(sys.argv) < 2 else int(sys.argv[1])
-    http_server = HTTPServer(WSGIContainer(app))
-    http_server.listen(port, address='0.0.0.0')
-    IOLoop.instance().start()
-    # app.run(host='0.0.0.0', port=80, debug=True)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=5002,
+        log_level="debug",
+    )

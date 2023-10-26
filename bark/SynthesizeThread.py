@@ -9,6 +9,12 @@ class SynthesizeThread(Thread):
         self.isWorking = False
         self.voice = voice
         self.directory = "bark/static"
+        self.request_dict = dict() 0=-65jn
+
+
+    def add_request(self, text, voice):
+        request_id = ""
+
     def run(self) -> None:
         synthesize("Hello, this is warm up synthesize.", directory=self.directory)
         while True:
