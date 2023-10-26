@@ -27,7 +27,7 @@ def synthesize(text="", stream=None, voice="en_fiery"):
 
     for sentence in syn_sentences:
         if sentence:
-            if word_count(sentence) < 7:
+            if word_count(sentence) < 5:
                 index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, stream=stream, initial_index=index)
             else:
                 index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, stream=stream, initial_index=index)

@@ -47,6 +47,7 @@ def text_to_semantic(
     history_prompt: Optional[Union[Dict, str]] = None,
     temp: float = 0.7,
     silent: bool = False,
+    min_eos_p: float = 0.2
 ):
     """Generate semantic array from text.
 
@@ -64,7 +65,8 @@ def text_to_semantic(
         history_prompt=history_prompt,
         temp=temp,
         silent=silent,
-        use_kv_caching=True
+        use_kv_caching=True,
+        min_eos_p=min_eos_p
     )
     return x_semantic
 
@@ -200,7 +202,8 @@ def generate_audio(
     silent: bool = False,
     output_full: bool = False,
     stream=None,
-    initial_index=0
+    initial_index=0,
+    min_eos_p=0.2
 ):
     """Generate audio array from input text.
 
@@ -255,6 +258,7 @@ def generate_audio(
         history_prompt=history_prompt,
         temp=text_temp,
         silent=silent,
+        min_eos_p=min_eos_p,
     ):
         coarse_tokens, x_coarse_in, n_step = generate_coarse(
             semantic_tokens,
