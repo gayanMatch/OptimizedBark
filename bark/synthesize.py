@@ -27,8 +27,8 @@ def synthesize(text_prompt, directory="static", voice="en_fiery"):
 
     for sentence in syn_sentences:
         if sentence:
-            if word_count(sentence) < 7:
-                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index)
+            if word_count(sentence) < 5:
+                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index, min_eos_p=0.1)
             else:
                 index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index)
     file = open(f'{directory}/finish.lock', 'wt')
