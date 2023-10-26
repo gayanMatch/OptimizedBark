@@ -7,7 +7,7 @@ import uuid
 import uvicorn
 # Tornado web server
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from bark.SynthesizeThread import SynthesizeThread
 
 DEFAULT_VOICE = 'test'
@@ -16,12 +16,23 @@ free_threads = []
 synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
 synthesize_thread.start()
 
+import logging
+
+root = logging.getLogger()
+root.setLevel(logging.DEBUG)
+
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+root.addHandler(ch)
 
 # Initialize Flask.
 app = FastAPI()
 
 
-@app.post('/<call_id>/synthesize')
+@app.post('/{call_id}/synthesize')
 async def synthesize(call_id: str, request: Request):
     global CALL_INDEX
     # call_id = "CA123" if port == 5000 else "CA124"

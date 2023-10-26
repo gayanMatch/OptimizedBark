@@ -9,10 +9,10 @@ def word_count(sentence):
     return len(sentence.split(' '))
 
 
-def synthesize(text_prompt, directory="static", voice="en_fiery"):
+def synthesize(text="", stream=None, voice="en_fiery"):
     start_time = time.time()
-    text = text_prompt.replace("\n", " ").strip()
-    sentences = nltk.sent_tokenize(text)
+    text_prompt = text.replace("\n", " ").strip()
+    sentences = nltk.sent_tokenize(text_prompt)
     index = 0
     last_sentence = ''
     syn_sentences = []
@@ -28,12 +28,11 @@ def synthesize(text_prompt, directory="static", voice="en_fiery"):
     for sentence in syn_sentences:
         if sentence:
             if word_count(sentence) < 7:
-                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index)
+                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, stream=stream, initial_index=index)
             else:
-                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, directory=directory, initial_index=index)
-    file = open(f'{directory}/finish.lock', 'wt')
-    file.write("Finish")
-    file.close()
+                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, stream=stream, initial_index=index)
+    if stream is not None:
+        stream.finish()
     end_time = time.time()
     duration = end_time - start_time
     print(f"Time for syntesize: {duration}")

@@ -38,31 +38,27 @@ class AsyncStream:
 class SynthesizeThread(Thread):
     def __init__(self, voice):
         super().__init__()
-        self.synthesize_queue = []
+        self.synthesize_queue = queue.Queue()
         self.isWorking = False
         self.voice = voice
         self.directory = "bark/static"
         self.request_dict = dict()
-
+        self.request_num = 0
 
     def add_request(self, text, voice):
-        request_id = ""
-
+        request_id = f"CA{self.request_num}"
+        self.request_num += 1
+        stream = AsyncStream(request_id)
+        self.synthesize_queue.put_nowait((stream, {"text": text, "voice": voice}))
+        return stream
 
     def run(self) -> None:
-        synthesize("Hello, this is warm up synthesize.", directory=self.directory)
+        synthesize("Hello, this is warm up synthesize.")
         while True:
-            if self.synthesize_queue:
-                print("Synthesis Started: ", time.time())
-                self.isWorking = True
-
-                for sentence, directory in self.synthesize_queue:
-                    print("Starting Synthesis")
-                    synthesize(sentence, directory=directory, voice=self.voice)
-                    # time.sleep(2)
-                    print("Synthesize Finished:", time.time())
-                    print("Synthesize Finished:", sentence)
-                self.synthesize_queue = []
-                self.isWorking = False
-            
-            time.sleep(0.01)
+            stream, kwargs = self.synthesize_queue.get()
+            print("Synthesis Started: ", time.time())
+            self.isWorking = True
+            synthesize(kwargs["text"], stream, voice=kwargs["voice"])
+            print("Synthesize Finished:", time.time())
+            print("Synthesize Finished:", kwargs["text"])
+            self.isWorking = False

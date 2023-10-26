@@ -199,7 +199,7 @@ def generate_audio(
     waveform_temp: float = 0.7,
     silent: bool = False,
     output_full: bool = False,
-    directory=None,
+    stream=None,
     initial_index=0
 ):
     """Generate audio array from input text.
@@ -245,17 +245,9 @@ def generate_audio(
             end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
             last_audio = audio_arr[:end_point]
         audio_mu = audioop_ulaw_compress(np.int16(audio_arr[start:end_point] * 2**15))
-        os.makedirs(directory, exist_ok=True)
-        file = open(f"{directory}/audio_{index}.raw", 'wb')
-        file.write(audio_mu.tobytes())
-        file.close()
-        # full_generation = {
-        #     "semantic_prompt": semantic_tokens,
-        #     "coarse_prompt": coarse_tokens,
-        #     "fine_prompt": fine_tokens,
-        # }
-        # save_as_prompt(f"{directory}/prompt_{index}.npz", full_generation)
-        print(f"{directory}/audio_{index}.raw", time.time())
+        if stream is not None:
+            stream.put(audio_mu.tobytes())
+        print(f"audio_{index}.raw", time.time())
         index += 1
         return last_audio, index
     for semantic_tokens, is_finished in text_to_semantic(
