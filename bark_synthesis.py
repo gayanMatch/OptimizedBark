@@ -1,10 +1,12 @@
 import os
+import nltk
 import time
 import shutil
 from bark.synthesize import synthesize
 
 
 if __name__ == "__main__":
+    nltk.download('punkt')
     print("Synthesize Ready")
     text_prompt = """
 It looks like you opted into one of our ads lookin' for information on how to scale your business using AI. Do you remember that?
