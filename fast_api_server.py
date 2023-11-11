@@ -40,7 +40,8 @@ async def synthesize(call_id: str, request: Request):
     data = await request.json()
     text = data.pop("text")
     voice = data.pop("voice")
-    stream = synthesize_thread.add_request(text, voice)
+    rate = data.pop("rate") if "rate" in data.keys() else 1.0
+    stream = synthesize_thread.add_request(text, voice, rate)
     async def stream_results():
         async for out in stream:
             yield out
