@@ -5,6 +5,7 @@ import torchaudio
 import soundfile as sf
 import numpy as np
 import time
+from audiostretchy.stretch import AudioStretch
 from .generation_v2 import codec_decode, generate_coarse, generate_fine, generate_text_semantic
 import audioop
 def numpy_audioop_helper(x, xdtype, func, width, ydtype):
@@ -21,6 +22,27 @@ def audioop_ulaw_expand(x):
     return numpy_audioop_helper(x, np.uint8, audioop.ulaw2lin, 2, np.int16)
 
 from vocos import Vocos
+
+def stretch_wav(wav, rate):
+    audio_stretch = AudioStretch()
+    audio_stretch.nchannels = 1
+    audio_stretch.sampwidth = 2
+    audio_stretch.framerate = 24000
+    audio_stretch.nframes = len(wav)
+    audio_stretch.in_samples = wav
+
+    audio_stretch.stretch(
+        ratio=rate,
+        gap_ratio=0.0,
+        upper_freq=333,
+        lower_freq=55,
+        buffer_ms=25,
+        threshold_gap_db=-40,
+        double_range=False,
+        fast_detection=False,
+        normal_detection=False,
+    )
+    return audio_stretch.samples
 def generate_audio(
     text: str,
     history_prompt: Optional[Union[Dict, str]] = None,
@@ -30,7 +52,8 @@ def generate_audio(
     output_full: bool = False,
     directory=None,
     initial_index=0,
-    min_eos_p=0.2
+    min_eos_p=0.2,
+    rate=1.0
 ):
     """Generate audio array from input text.
 
@@ -74,7 +97,7 @@ def generate_audio(
             audio_arr[:len(last_audio)] = last_audio
             end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
             last_audio = audio_arr[:end_point]
-        audio_mu = audioop_ulaw_compress(np.int16(audio_arr[start:end_point] * 2**15))
+        audio_mu = audioop_ulaw_compress(stretch_wav(np.int16(audio_arr[start:end_point] * 2**15), rate=rate))
         os.makedirs(directory, exist_ok=True)
         if index == 0:
             shutil.copy("bark/assets/header.raw", f"{directory}/audio_0.raw")

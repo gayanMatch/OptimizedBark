@@ -9,7 +9,7 @@ def word_count(sentence):
     return len(sentence.split(' '))
 
 
-def synthesize(text_prompt="Um", directory="static", voice="en_fiery", semantic_temp=0.7, coarse_temp=0.5):
+def synthesize(text_prompt="Um", directory="static", voice="en_fiery", semantic_temp=0.7, coarse_temp=0.5, rate=1.0):
     start_time = time.time()
     text = text_prompt.replace("\n", " ").strip()
     sentences = nltk.sent_tokenize(text)
@@ -36,7 +36,8 @@ def synthesize(text_prompt="Um", directory="static", voice="en_fiery", semantic_
                     silent=True,
                     directory=directory,
                     initial_index=index,
-                    min_eos_p=0.1
+                    min_eos_p=0.1,
+                    rate=rate
                 )
             else:
                 index = generate_audio(
@@ -46,7 +47,8 @@ def synthesize(text_prompt="Um", directory="static", voice="en_fiery", semantic_
                     waveform_temp=coarse_temp,
                     silent=True,
                     directory=directory,
-                    initial_index=index
+                    initial_index=index,
+                    rate=rate
                 )
     file = open(f'{directory}/finish.lock', 'wt')
     file.write("Finish")
