@@ -22,11 +22,17 @@ def audioop_ulaw_expand(x):
 
 from vocos import Vocos
 
+def get_zero_value_length(wav):
+    non_zero_indices = np.nonzero(wav)[0]
+    last_non_zero_index = non_zero_indices[-1]
+    return last_non_zero_index, len(wav) - last_non_zero_index - 1
+
+
 def stretch_wav(wav, rate):
     audio_stretch = AudioStretch()
     audio_stretch.nchannels = 1
     audio_stretch.sampwidth = 2
-    audio_stretch.framerate = 24000
+    audio_stretch.framerate = 8000
     audio_stretch.nframes = len(wav)
     audio_stretch.in_samples = wav
 
@@ -41,7 +47,13 @@ def stretch_wav(wav, rate):
         fast_detection=False,
         normal_detection=False,
     )
-    return audio_stretch.samples
+    target_samples = audio_stretch.samples
+    _, initial_silence_length = get_zero_value_length(wav)
+    target_silence_length = int(initial_silence_length * rate)
+    last_non_zero_index, _ = get_zero_value_length(target_samples)
+    return audio_stretch.samples[:last_non_zero_index + target_silence_length]
+
+
 
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
