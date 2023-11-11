@@ -85,7 +85,7 @@ def synthesize():
         "voice": voice.replace(".npz", ""),
         "semantic_temp": float(semantic_temp),
         "coarse_temp": float(coarse_temp),
-        "rate": rate
+        "rate": float(rate)
     }
     print("#" * 50)
     # print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
