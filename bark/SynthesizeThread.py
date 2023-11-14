@@ -58,7 +58,7 @@ class SynthesizeThread(Thread):
             stream, kwargs = self.synthesize_queue.get()
             print("Synthesis Started: ", time.time())
             self.isWorking = True
-            synthesize(kwargs["text"], stream, voice=kwargs["voice"])
+            synthesize(kwargs["text"], stream, voice=kwargs["voice"], rate=kwargs["rate"])
             print("Synthesize Finished:", time.time())
             print("Synthesize Finished:", kwargs["text"])
             self.isWorking = False
