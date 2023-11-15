@@ -53,9 +53,9 @@ def show_entries():
         if file:
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            synthesize_thread.synthesize_queue.append((filename.replace('.npz', ''), True))
-            while synthesize_thread.isWorking:
-                time.sleep(0.01)
+            # synthesize_thread.synthesize_queue.append((filename.replace('.npz', ''), True))
+            # while synthesize_thread.isWorking:
+            #     time.sleep(0.01)
             flash('File uploaded successfully')
             return redirect(request.url)
 
