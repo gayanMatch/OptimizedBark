@@ -124,6 +124,14 @@ REMOTE_MODEL_PATHS = {
         "file_name": "fine_2.pt",
     },
 }
+LOCAL_MODEL_PATHS = {
+    "text_small": "./models/bark/pytorch/model.pt",
+    "coarse_small": "./models/bark_coarse/pytorch/model.pt",
+    "fine_small": "./models/bark_fine/pytorch/model.pt",
+    "text": "./models/bark_large/pytorch/model.pt",
+    "coarse": "./models/bark_coarse_large/pytorch/model.pt",
+    "fine": "./models/bark_fine_large/pytorch/model.pt",
+}
 
 
 if not hasattr(torch.nn.functional, 'scaled_dot_product_attention') and torch.cuda.is_available():
@@ -147,7 +155,7 @@ def _get_ckpt_path(model_type, use_small=False):
     key = model_type
     if use_small or USE_SMALL_MODELS:
         key += "_small"
-    return os.path.join(CACHE_DIR, REMOTE_MODEL_PATHS[key]["file_name"])
+    return LOCAL_MODEL_PATHS[key]
 
 
 def _download(from_hf_path, file_name):

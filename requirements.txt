@@ -20,3 +20,4 @@ werkzeug
 tornado
 uvicorn
 fastapi
+audiostretchy[all]
