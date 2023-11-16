@@ -75,14 +75,14 @@ def synthesize():
     # call_id = "CA123" if port == 5000 else "CA124"
     call_id = f"CA{CALL_INDEX}"
     text = request.form['text']
-    voice = request.form['voice']
+    voice = request.form['voice'].replace(".npz", "")
     semantic_temp = request.form['semantic_temp']
     coarse_temp = request.form['coarse_temp']
     rate = request.form['rate'] if "rate" in request.form.keys() else 1.0
     directory_path = f'bark/static/{call_id}'
     dictionary = {
         "text_prompt": text,
-        "voice": voice.replace(".npz", ""),
+        "voice": voice,
         "semantic_temp": float(semantic_temp),
         "coarse_temp": float(coarse_temp),
         "rate": float(rate)
@@ -91,6 +91,7 @@ def synthesize():
     # print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
     print(text)
     print("#" * 50)
+    print(os.path.join("bark", "assets", "prompts", f"{voice}.npz"))
     if os.path.exists(os.path.join("bark", "assets", "prompts", f"{voice}.npz")):
         synthesize_thread.synthesize_queue.append((dictionary, f"bark/static/{call_id}"))
         while not os.path.exists(f'{directory_path}/audio_1.raw'):
@@ -104,7 +105,7 @@ def synthesize():
         uploaded_files.sort()
         uploaded_files = [os.path.relpath(file, app.config['UPLOAD_FOLDER']) for file in uploaded_files]
         selected_file = DEFAULT_VOICE
-        render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
+        return render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
 
 # launch a Tornado server with HTTPServer.
