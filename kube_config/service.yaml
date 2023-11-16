@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tts-service
+spec:
+  selector:
+    app: tts
+  ports:
+    - protocol: TCP
+      port: 5000 # The service port
+      targetPort: 5000 # The container port
+  type: LoadBalancer # Choose a different type if needed, like NodePort or ClusterIP

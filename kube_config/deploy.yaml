@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tts
+  template:
+    metadata:
+      labels:
+        app: tts
+    spec:
+      containers:
+        - name: tts
+          image: gcr.io/optimize-bark/tts:fastapi_tts # Use the appropriate tag/version
+          resources:
+            limits:
+              nvidia.com/gpu: 1 # Request one GPU
+          ports:
+            - containerPort: 5000 # Replace with the port your server uses
