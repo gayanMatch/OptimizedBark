@@ -91,12 +91,20 @@ def synthesize():
     # print("Previous Synthesis Finished:", len(os.listdir(directory_path)) == 0)
     print(text)
     print("#" * 50)
-    synthesize_thread.synthesize_queue.append((dictionary, f"bark/static/{call_id}"))
-    while not os.path.exists(f'{directory_path}/audio_1.raw'):
-        time.sleep(0.01)
-    url_root = request.url_root.replace(str(port), '4000')
-    CALL_INDEX += 1
-    return redirect(f"{url_root}{call_id}/play")
+    if os.path.exists(os.path.join("bark", "assets", "prompts", f"{voice}.npz")):
+        synthesize_thread.synthesize_queue.append((dictionary, f"bark/static/{call_id}"))
+        while not os.path.exists(f'{directory_path}/audio_1.raw'):
+            time.sleep(0.01)
+        url_root = request.url_root.replace(str(port), '4000')
+        CALL_INDEX += 1
+        return redirect(f"{url_root}{call_id}/play")
+    else:
+        uploaded_files = list(glob.glob(f"{app.config['UPLOAD_FOLDER']}/*.npz")) + list(
+            glob.glob(f"{app.config['UPLOAD_FOLDER']}/v2/*.npz"))
+        uploaded_files.sort()
+        uploaded_files = [os.path.relpath(file, app.config['UPLOAD_FOLDER']) for file in uploaded_files]
+        selected_file = DEFAULT_VOICE
+        render_template('index.html', uploaded_files=uploaded_files, selected_file=selected_file)
 
 
 # launch a Tornado server with HTTPServer.
