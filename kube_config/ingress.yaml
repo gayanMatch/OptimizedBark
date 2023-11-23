@@ -2,18 +2,15 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-ingress
-  annotations:
-    nginx.ingress.kubernetes.io/affinity: "cookie"
-    nginx.ingress.kubernetes.io/session-cookie-name: "uid"  # The name of the cookie to use for affinity
 spec:
+  ingressClassName: istio
   rules:
-  - host: "<ip>"
-    http:
-      paths:
-      - path: "/synthesize"
-        pathType: Prefix
-        backend:
-          service:
-            name: fast-api-server-service
-            port:
-              number: 80
+    - http:
+        paths:
+        - path: "/CA123/synthesize"
+          pathType: Prefix
+          backend:
+            service:
+              name: tts-service
+              port:
+                number: 5000

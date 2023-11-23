@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: tts
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: tts
@@ -20,3 +20,5 @@ spec:
               nvidia.com/gpu: 1 # Request one GPU
           ports:
             - containerPort: 5000 # Replace with the port your server uses
+      nodeSelector:
+        cloud.google.com/gke-accelerator: "nvidia-l4"

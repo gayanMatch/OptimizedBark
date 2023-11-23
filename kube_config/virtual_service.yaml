@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: tts-virtual
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - tts-gateway
+  http:
+  - match:
+    - uri:
+        exact: /CA123/synthesize
+    route:
+    - destination:
+        host: tts-service
+        port:
+          number: 5000
