@@ -4,8 +4,16 @@ import torchaudio
 import soundfile as sf
 import numpy as np
 import time
-from .generation_v2 import codec_decode, generate_coarse, generate_fine, generate_text_semantic
 import audioop
+import torch
+from vocos import Vocos
+from .generation_v2 import generate_coarse, generate_fine, generate_text_semantic
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
+
+
 def numpy_audioop_helper(x, xdtype, func, width, ydtype):
     '''helper function for using audioop buffer conversion in numpy'''
     xi = np.asanyarray(x).astype(xdtype)
@@ -14,33 +22,15 @@ def numpy_audioop_helper(x, xdtype, func, width, ydtype):
         raise ValueError("input must be %s [%d..%d]" % (xdtype, xinfo.min, xinfo.max))
     y = np.frombuffer(func(xi.tobytes(), width), dtype=ydtype)
     return y.reshape(xi.shape)
+
+
 def audioop_ulaw_compress(x):
     return numpy_audioop_helper(x, np.int16, audioop.lin2ulaw, 2, np.uint8)
+
+
 def audioop_ulaw_expand(x):
     return numpy_audioop_helper(x, np.uint8, audioop.ulaw2lin, 2, np.int16)
 
-from vocos import Vocos
-import torch
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
-
-def detect_last_silence_index(audio_data, sr=24000, threshold=0.04, min_silence=20):
-    silence_start = None
-    silence_count = 0
-    min_silent_samples = (sr * min_silence) // 1000
-
-    for i in range(len(audio_data) - 1, -1, -1):
-        if abs(audio_data[i]) <= threshold:
-            if silence_start is None:
-                silence_start = i
-            silence_count += 1
-        else:
-            if silence_start is not None and silence_count >= min_silent_samples:
-                break
-            silence_start = None
-            silence_count = 0
-
-    return silence_start - silence_count // 2 if silence_start is not None else None
 
 def text_to_semantic(
     text: str,
@@ -69,53 +59,6 @@ def text_to_semantic(
         min_eos_p=min_eos_p
     )
     return x_semantic
-
-
-def semantic_to_waveform(
-    semantic_tokens: np.ndarray,
-    history_prompt: Optional[Union[Dict, str]] = None,
-    temp: float = 0.7,
-    silent: bool = False,
-    output_full: bool = False,
-):
-    """Generate audio array from semantic input.
-
-    Args:
-        semantic_tokens: semantic token output from `text_to_semantic`
-        history_prompt: history choice for audio cloning
-        temp: generation temperature (1.0 more diverse, 0.0 more conservative)
-        silent: disable progress bar
-        output_full: return full generation to be used as a history prompt
-
-    Returns:
-        numpy audio array at sample frequency 24khz
-    """
-    for coarse_tokens in generate_coarse(
-        semantic_tokens,
-        history_prompt=history_prompt,
-        temp=temp,
-        silent=silent,
-        use_kv_caching=True
-    ):
-        fine_tokens = generate_fine(
-            coarse_tokens,
-            history_prompt=history_prompt,
-            temp=0.5,
-        )
-        # audio_arr = codec_decode(fine_tokens)
-        s = time.time()
-        audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
-        features = vocos.codes_to_features(audio_tokens_torch)
-        audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).cpu().numpy()[0]
-        print(time.time() - s)
-    if output_full:
-        full_generation = {
-            "semantic_prompt": semantic_tokens,
-            "coarse_prompt": coarse_tokens,
-            "fine_prompt": fine_tokens,
-        }
-        return full_generation, audio_arr
-    return audio_arr
 
 
 def save_as_prompt(filepath, full_generation):
@@ -209,59 +152,3 @@ def generate_audio(
     # print("Total Audio Length: ", len(audio_arr) / 24000)
     return index
 
-
-def generate_prompt(
-        text: str,
-        history_prompt: Optional[Union[Dict, str]] = None,
-        text_temp: float = 0.7,
-        waveform_temp: float = 0.7,
-        silent: bool = False,
-):
-    """Generate audio array from input text.
-
-    Args:
-        text: text to be turned into audio
-        history_prompt: history choice for audio cloning
-        text_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
-        waveform_temp: generation temperature (1.0 more diverse, 0.0 more conservative)
-        silent: disable progress bar
-        output_full: return full generation to be used as a history prompt
-
-    Returns:
-        numpy audio array at sample frequency 24khz
-    """
-    print(text)
-    x_coarse_in = None
-    n_step = 0
-
-    def save_prompt_from_coarse():
-        fine_tokens = generate_fine(
-            coarse_tokens,
-            history_prompt=history_prompt,
-            temp=0.5,
-        )
-        # print(start, end_point)
-        full_generation = {
-            "semantic_prompt": semantic_tokens,
-            "coarse_prompt": coarse_tokens,
-            "fine_prompt": fine_tokens,
-        }
-        save_as_prompt(f"bark/assets/prompts/short/{history_prompt}.npz", full_generation)
-
-    for semantic_tokens, is_finished in text_to_semantic(
-            text,
-            history_prompt=history_prompt,
-            temp=text_temp,
-            silent=silent,
-    ):
-        coarse_tokens, x_coarse_in, n_step = generate_coarse(
-            semantic_tokens,
-            is_finished,
-            history_prompt=history_prompt,
-            temp=waveform_temp,
-            silent=silent,
-            use_kv_caching=True,
-            initial_x_coarse_in=x_coarse_in,
-            initial_n_step=n_step
-        )
-    save_prompt_from_coarse()

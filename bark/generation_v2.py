@@ -13,7 +13,6 @@ import torch.nn.functional as F
 import tqdm
 from transformers import BertTokenizer
 from huggingface_hub import hf_hub_download
-
 from .model import GPTConfig, GPT, GPT_COARSE
 from .model_fine import FineGPT, FineGPTConfig
 from NNDF.networks import NetworkMetadata, Precision

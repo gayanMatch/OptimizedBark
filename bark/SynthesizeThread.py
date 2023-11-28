@@ -3,7 +3,7 @@ import asyncio
 import queue
 import os
 from threading import Thread
-from bark.synthesize import synthesize, synthesize_prompt
+from bark.synthesize import synthesize
 
 class AsyncStream:
     def __init__(self, request_id: str) -> None:

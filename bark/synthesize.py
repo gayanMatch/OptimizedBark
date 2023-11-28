@@ -1,8 +1,6 @@
-import os
 import time
-import soundfile as sf
 import nltk
-from bark.api_v2 import generate_audio, save_as_prompt, generate_prompt
+from bark.api_v2 import generate_audio
 
 
 def word_count(sentence):
@@ -37,11 +35,6 @@ def synthesize(text="", stream=None, voice="en_fiery"):
     duration = end_time - start_time
     print(f"Time for syntesize: {duration}")
 
-
-def synthesize_prompt(voice):
-    text_prompt = "I'm going to speak short prompts. Only short prompt itself."
-    generate_prompt(text_prompt, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=False)
-    
 
 if __name__ == "__main__":
     print("Synthesize Ready")
