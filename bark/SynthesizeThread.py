@@ -45,11 +45,11 @@ class SynthesizeThread(Thread):
         self.request_dict = dict()
         self.request_num = 0
 
-    def add_request(self, text, voice):
+    def add_request(self, text, voice, rate=1.0):
         request_id = f"CA{self.request_num}"
         self.request_num += 1
         stream = AsyncStream(request_id)
-        self.synthesize_queue.put_nowait((stream, {"text": text, "voice": voice}))
+        self.synthesize_queue.put_nowait((stream, {"text": text, "voice": voice, "rate": rate}))
         return stream
 
     def run(self) -> None:
@@ -58,7 +58,7 @@ class SynthesizeThread(Thread):
             stream, kwargs = self.synthesize_queue.get()
             print("Synthesis Started: ", time.time())
             self.isWorking = True
-            synthesize(kwargs["text"], stream, voice=kwargs["voice"])
+            synthesize(kwargs["text"], stream, voice=kwargs["voice"], rate=kwargs["rate"])
             print("Synthesize Finished:", time.time())
             print("Synthesize Finished:", kwargs["text"])
             self.isWorking = False
