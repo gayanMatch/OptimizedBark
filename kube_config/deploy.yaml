@@ -14,11 +14,22 @@ spec:
     spec:
       containers:
         - name: tts
-          image: gcr.io/optimize-bark/tts:fastapi_tts # Use the appropriate tag/version
+          image: gcr.io/air-pulumi/tts:1.1.test.1204 # Use the appropriate tag/version
           resources:
             limits:
               nvidia.com/gpu: 1 # Request one GPU
           ports:
             - containerPort: 5000 # Replace with the port your server uses
+          readinessProbe:
+            httpGet:
+              port: 5000
+              path: /process_available
+            periodSeconds: 1
+            failureThreshold: 1
+          env:
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
       nodeSelector:
         cloud.google.com/gke-accelerator: "nvidia-l4"

@@ -1,18 +1,9 @@
 apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
-  name: single-request-per-pod
+  name: tts-rule
 spec:
   host: tts-service
   trafficPolicy:
-    connectionPool:
-      tcp:
-        maxConnections: 1
-      http:
-#        maxPendingRequests: 1
-        maxRequestsPerConnection: 1
-    outlierDetection:
-      consecutiveErrors: 1
-      interval: 1s
-      baseEjectionTime: 3m
-      maxEjectionPercent: 100
+    loadBalancer:
+      simple: LEAST_CONN
