@@ -29,12 +29,9 @@ root.addHandler(ch)
 
 # Initialize Flask.
 app = FastAPI()
-is_process_available = True
-
 @app.post('/{call_id}/synthesize')
 async def synthesize(call_id: str, request: Request):
-    global is_process_available
-    if not is_process_available:
+    if synthesize_thread.is_busy():
         def stream_results():
             yield os.getenv('MY_POD_NAME')
         return StreamingResponse(stream_results(), status_code=400)
@@ -49,18 +46,16 @@ async def synthesize(call_id: str, request: Request):
     rate -= 0.1
     stream = synthesize_thread.add_request(text, voice, rate)
     async def stream_results():
+        yield os.getenv('MY_POD_NAME')
         async for out in stream:
-            # yield out
-            yield os.getenv('MY_POD_NAME')
-        global is_process_available
-        is_process_available = True
+            yield out
+            # yield os.getenv('MY_POD_NAME')
     return StreamingResponse(stream_results(), media_type="application/octet-stream")
 
 
 @app.get('/process_available')
 def get_readiness():
-    global is_process_available
-    if is_process_available:
+    if not synthesize_thread.is_busy():
         print("Ready", os.getenv('MY_POD_NAME'))
         return Response(status_code=200)
     else:

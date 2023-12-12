@@ -5,3 +5,4 @@
 !/models/bark_fine_large/pytorch/
 !/models/bark_large/pytorch/
 /result/
+/logs/

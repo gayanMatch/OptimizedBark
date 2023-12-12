@@ -39,7 +39,7 @@ class SynthesizeThread(Thread):
     def __init__(self, voice):
         super().__init__()
         self.synthesize_queue = queue.Queue()
-        self.isWorking = False
+        self.isWorking = True
         self.voice = voice
         self.directory = "bark/static"
         self.request_dict = dict()
@@ -54,6 +54,7 @@ class SynthesizeThread(Thread):
 
     def run(self) -> None:
         synthesize("Hello, this is warm up synthesize.")
+        self.isWorking = False
         while True:
             stream, kwargs = self.synthesize_queue.get()
             print("Synthesis Started: ", time.time())
@@ -62,3 +63,6 @@ class SynthesizeThread(Thread):
             print("Synthesize Finished:", time.time())
             print("Synthesize Finished:", kwargs["text"])
             self.isWorking = False
+
+    def is_busy(self) -> bool:
+        return not self.synthesize_queue.empty() or self.isWorking

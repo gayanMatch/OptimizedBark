@@ -1,4 +1,4 @@
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
   name: tts-rule
@@ -6,4 +6,9 @@ spec:
   host: tts-service
   trafficPolicy:
     loadBalancer:
-      simple: LEAST_CONN
+#      consistentHash:
+#        httpHeaderName: CallID
+#        ringHash:
+#          minimumRingSize: 10
+
+      simple: LEAST_REQUEST
