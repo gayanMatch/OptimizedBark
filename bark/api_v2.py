@@ -24,8 +24,12 @@ from vocos import Vocos
 
 def get_zero_value_length(wav):
     non_zero_indices = np.nonzero(wav)[0]
-    last_non_zero_index = non_zero_indices[-1]
-    return last_non_zero_index, len(wav) - last_non_zero_index - 1
+    if len(non_zero_indices):
+        last_non_zero_index = non_zero_indices[-1]
+        return last_non_zero_index, len(wav) - last_non_zero_index - 1
+    else:
+        last_non_zero_index = len(wav) - 1
+        return last_non_zero_index, 0
 
 
 def stretch_wav(wav, rate):
