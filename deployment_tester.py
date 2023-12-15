@@ -6,12 +6,12 @@ import threading
 import sys
 import requests
 
-REQUEST_COUNT = 1
+REQUEST_COUNT = 2
 DELAY = 0.01
 SERVER = "istio"
 SERVER = "mine"
 ip = "35.233.179.102:80" if SERVER == "istio" else "34.82.114.109:5000"
-ip = "35.233.179.102:80" if SERVER == "istio" else "10.108.0.68:5000"
+# ip = "35.233.179.102:80" if SERVER == "istio" else "10.108.0.68:5000"
 log_file = "logs.log" if SERVER == "istio" else "logs_mine.log"
 logging.basicConfig(filename=log_file, filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logging.info(f"Started Application test using DELAY of {DELAY} and {REQUEST_COUNT} of requests")

@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: tts
 spec:
-  replicas: 30
+  replicas: 0
   selector:
     matchLabels:
       app: tts
@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: tts
-          image: gcr.io/air-pulumi/tts:1.1.test.1211 # Use the appropriate tag/version
+          image: gcr.io/air-pulumi/tts:1.1.test.1213 # Use the appropriate tag/version
           resources:
             limits:
               nvidia.com/gpu: 1 # Request one GPU
