@@ -18,16 +18,8 @@ synthesize_thread.start()
 
 import logging
 
-root = logging.getLogger()
-root.setLevel(logging.DEBUG)
-
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-root.addHandler(ch)
-
+logging.basicConfig(filename='logs.log', filemode='a', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.info("===================== Server Started ======================================")
 # Initialize Flask.
 app = FastAPI()
 
@@ -39,12 +31,16 @@ async def synthesize(call_id: str, request: Request):
     call_id = f"CA{CALL_INDEX}"
     data = await request.json()
     text = data.pop("text")
-    voice = data.pop("voice")
+    voice = data.pop("voice").replace('.npz', '')
     rate = data.pop("rate") if "rate" in data.keys() else 1.0
-    rate -= 0.1
+    logging.info(f"Request Info for {call_id} - Text: {text}, Voice: {voice}, Rate: {rate}")
+    # rate -= 0.1
     stream = synthesize_thread.add_request(text, voice, rate)
     async def stream_results():
+        index = 0
         async for out in stream:
+            logging.info(f"Response Info for {call_id} - Sent {index}")
+            index += 1
             yield out
     return StreamingResponse(stream_results(), media_type="application/octet-stream")
 

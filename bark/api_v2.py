@@ -258,7 +258,7 @@ def generate_audio(
     Returns:
         numpy audio array at sample frequency 24khz
     """
-    print(text)
+    print("Generating", text)
     last_audio = None
     index = initial_index
     x_coarse_in = None
@@ -290,7 +290,7 @@ def generate_audio(
         audio_mu = audioop_ulaw_compress(stretch_wav(np.int16(audio_arr[start:end_point] * 2**15), rate))
         if stream is not None:
             stream.put(audio_mu.tobytes())
-        print(f"audio_{index}.raw", time.time())
+        # print(f"audio_{index}.raw", time.time())
         index += 1
         return last_audio, index
     for semantic_tokens, is_finished in text_to_semantic(
