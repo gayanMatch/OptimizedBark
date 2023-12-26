@@ -20,4 +20,5 @@ werkzeug
 tornado
 uvicorn
 fastapi
+google-cloud-storage
 audiostretchy[all]

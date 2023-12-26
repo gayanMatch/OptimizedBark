@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: tts
 spec:
-  replicas: 0
+  replicas: 2
   selector:
     matchLabels:
       app: tts
@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: tts
-          image: gcr.io/air-pulumi/tts:1.1.test.1213 # Use the appropriate tag/version
+          image: gcr.io/air-pulumi/tts:1.1.test.1225 # Use the appropriate tag/version
           resources:
             limits:
               nvidia.com/gpu: 1 # Request one GPU
@@ -24,9 +24,16 @@ spec:
             httpGet:
               port: 5000
               path: /process_available
-            periodSeconds: 1
+            periodSeconds: 10
             failureThreshold: 1
             initialDelaySeconds: 60
+          livenessProbe:
+            httpGet:
+              port: 5000
+              path: /is_alive
+            periodSeconds: 20
+            failureThreshold: 2
+            initialDelaySeconds: 100
           env:
             - name: MY_POD_NAME
               valueFrom:
