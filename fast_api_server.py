@@ -54,7 +54,7 @@ async def synthesize(call_id: str, request: Request):
 
     stream = synthesize_thread.add_request(text, voice, rate)
     async def stream_results():
-        yield os.getenv('MY_POD_NAME')
+        # yield os.getenv('MY_POD_NAME')
         async for out in stream:
             yield out
     return StreamingResponse(stream_results(), media_type="application/octet-stream")
@@ -82,6 +82,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=5000,
+        port=5001,
         log_level="debug",
     )

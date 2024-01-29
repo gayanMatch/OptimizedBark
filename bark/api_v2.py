@@ -137,6 +137,7 @@ def generate_audio(
     x_coarse_in = None
     n_step = 0
     cnt = 0
+
     def gen_audio_from_coarse(last_audio, index, is_last=False):
         fine_tokens = generate_fine(
             coarse_tokens,
@@ -146,21 +147,17 @@ def generate_audio(
         # fine_tokens = coarse_tokens
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
         features = vocos.codes_to_features(audio_tokens_torch)
-        audio_arr = torchaudio.functional.resample(
-            vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze(),
-            orig_freq=24000,
-            new_freq=8000
-        ).cpu().numpy()
+        audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze().cpu().numpy()
         if last_audio is None:
             start = 0
-            end_point = len(audio_arr) - int(0.2 * 8000)
+            end_point = len(audio_arr) - int(0.2 * 24000)
             last_audio = audio_arr[:end_point]
         else:
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
-            end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
+            end_point = len(audio_arr) - int(0.2 * 24000) if not is_last else len(audio_arr)
             last_audio = audio_arr[:end_point]
-        audio_mu = audioop_ulaw_compress(stretch_wav(np.int16(audio_arr[start:end_point] * 2**15), rate))
+        audio_mu = np.int16(audio_arr[start:end_point] * 2**15)
         if stream is not None:
             stream.put(audio_mu.tobytes())
         print(f"audio_{index}.raw", time.time())

@@ -57,6 +57,11 @@ class SynthesizeThread(Thread):
         self.isWorking = False
         while True:
             stream, kwargs = self.synthesize_queue.get()
+            # header_file = open('bark/assets/header_24000.raw', 'rb')
+            # header_data = header_file.read()
+            # header_file.close()
+            # if stream:
+            #     stream.put(header_data)
             print("Synthesis Started: ", time.time())
             self.isWorking = True
             synthesize(kwargs["text"], stream, voice=kwargs["voice"], rate=kwargs["rate"])
