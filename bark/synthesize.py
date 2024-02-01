@@ -15,7 +15,7 @@ def synthesize(text="", stream=None, voice="en_fiery", rate=1.0):
     last_sentence = ''
     syn_sentences = []
     for sentence in sentences:
-        if word_count(last_sentence + ' ' + sentence) > 30:
+        if word_count(last_sentence + ' ' + sentence) > 50:
             syn_sentences.append(last_sentence)
             last_sentence = sentence
         else:
