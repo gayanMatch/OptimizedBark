@@ -11,12 +11,12 @@ COPY . .
 #RUN mkdir models
 #RUN mkdir models/bark_large
 RUN mkdir models/bark_large/trt-engine
-RUN #mkdir models/bark_large/pytorch
-RUN #mkdir models/bark_coarse
+RUN mkdir models/bark_large/pytorch
+RUN mkdir models/bark_coarse
 RUN mkdir models/bark_coarse/trt-engine
-RUN #mkdir models/bark_coarse/pytorch
-RUN #mkdir models/bark_fine_large
-RUN #mkdir models/bark_fine_large/pytorch
+RUN mkdir models/bark_coarse/pytorch
+RUN mkdir models/bark_fine_large
+RUN mkdir models/bark_fine_large/pytorch
 
 COPY --from=trt_bark /app/models/bark_large/trt-engine /app/models/bark_large/trt-engine/
 COPY --from=trt_bark /app/models/bark_coarse/trt-engine /app/models/bark_coarse/trt-engine/
