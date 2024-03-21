@@ -11,12 +11,12 @@ synthesize_thread.start()
 
 redis_url = 'redis://default:eb7199cbf0f54bf5bb084f7f1d594692@fly-bark-queries.upstash.io:6379'
 # Establish connections to Redis for both publishing results and subscribing to incoming tasks
-# r = redis.Redis.from_url(redis_url)
-r = redis.Redis(
-  host='localhost',  # Changed to localhost
-  port=6379,
-  password=''  # Likely no password if you're just testing locally
-)
+r = redis.Redis.from_url(redis_url)
+# r = redis.Redis(
+#   host='localhost',  # Changed to localhost
+#   port=6379,
+#   password=''  # Likely no password if you're just testing locally
+# )
 
 
 def handle_predictions():
