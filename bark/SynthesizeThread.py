@@ -2,8 +2,10 @@ import time
 import asyncio
 import queue
 import os
-from threading import Thread
+from threading import Thread, Event
+from queue import Queue, Empty
 from bark.synthesize import synthesize
+
 
 class AsyncStream:
     def __init__(self, request_id: str) -> None:
@@ -35,6 +37,54 @@ class AsyncStream:
             raise result
         return result
 
+
+class Stream:
+    def __init__(self, request_id: str) -> None:
+        self.request_id = request_id
+        self._queue = Queue()
+        self._finished = Event()
+
+    def put(self, item) -> None:
+        if self._finished.is_set():
+            return
+        self._queue.put(item)
+
+    def finish(self) -> None:
+        self._queue.put(StopIteration)
+        self._finished.set()
+
+    @property
+    def finished(self) -> bool:
+        return self._finished.is_set()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._finished.is_set() and self._queue.empty():
+            raise StopIteration
+
+        try:
+            # Try to get an item from the queue. If the queue is empty, this will block
+            # for a timeout duration. A timeout could be added as an argument to the get
+            # method to prevent indefinite blocking if necessary.
+            result = self._queue.get()  # may need adjustment depending on use case
+        except Empty:
+            # If the queue was empty, we end the iteration.
+            # This could be replaced or removed based on behavior needs.
+            raise StopIteration
+
+        if result is StopIteration:
+            # If the result is the StopIteration object, end the iteration.
+            raise StopIteration
+        elif isinstance(result, Exception):
+            # If the result is an Exception, raise it.
+            raise result
+
+        # Return the retrieved item.
+        return result
+
+
 class SynthesizeThread(Thread):
     def __init__(self, voice):
         super().__init__()
@@ -48,7 +98,7 @@ class SynthesizeThread(Thread):
     def add_request(self, text, voice, rate=1.0):
         request_id = f"CA{self.request_num}"
         self.request_num += 1
-        stream = AsyncStream(request_id)
+        stream = Stream(request_id)
         self.synthesize_queue.put_nowait((stream, {"text": text, "voice": voice, "rate": rate}))
         return stream
 

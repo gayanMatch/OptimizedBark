@@ -22,3 +22,4 @@ uvicorn
 fastapi
 google-cloud-storage
 audiostretchy[all]
+redis
