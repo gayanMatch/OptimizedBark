@@ -4,6 +4,7 @@ import os
 import base64
 import time  # Used for simulating long-running or streaming predictions
 from bark.SynthesizeThread import SynthesizeThread
+from bucket_utils import download_voice
 
 DEFAULT_VOICE = os.environ.get("DEFAULT_VOICE", "hey_james_reliable_1_small_coarse_fix")
 synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
@@ -31,6 +32,8 @@ def handle_predictions():
         voice = request["voice"]
         rate = request["rate"]
 
+        if voice + ".npz" not in os.listdir("bark/assets/prompts"):
+            download_voice('tts-voices-npz', voice, 'bark/assets/prompts')
         # This is a simplistic approach; consider batching or other optimizations for your actual use case
         stream = synthesize_thread.add_request(text, voice, rate)
 
