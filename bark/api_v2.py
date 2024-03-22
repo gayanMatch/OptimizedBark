@@ -47,7 +47,7 @@ def stretch_wav(wav, rate):
     audio_stretch = AudioStretch()
     audio_stretch.nchannels = 1
     audio_stretch.sampwidth = 2
-    audio_stretch.framerate = 8000
+    audio_stretch.framerate = 16000
     audio_stretch.nframes = len(wav)
     audio_stretch.in_samples = wav
 
@@ -149,18 +149,18 @@ def generate_audio(
         audio_arr = torchaudio.functional.resample(
             vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze(),
             orig_freq=24000,
-            new_freq=8000
+            new_freq=16000
         ).cpu().numpy()
         if last_audio is None:
             start = 0
-            end_point = len(audio_arr) - int(0.2 * 8000)
+            end_point = len(audio_arr) - int(0.2 * 16000)
             last_audio = audio_arr[:end_point]
         else:
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
-            end_point = len(audio_arr) - int(0.2 * 8000) if not is_last else len(audio_arr)
+            end_point = len(audio_arr) - int(0.2 * 16000) if not is_last else len(audio_arr)
             last_audio = audio_arr[:end_point]
-        audio_mu = audioop_ulaw_compress(stretch_wav(np.int16(audio_arr[start:end_point] * 2**15), rate))
+        audio_mu = stretch_wav(np.int16(audio_arr[start:end_point] * 2**15), rate)
         if stream is not None:
             stream.put(audio_mu.tobytes())
         print(f"audio_{index}.raw", time.time())
