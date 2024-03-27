@@ -11,7 +11,7 @@ FLY_MACHINE_ID = os.environ.get("FLY_MACHINE_ID", '1111111111111111111')
 synthesize_thread = SynthesizeThread(DEFAULT_VOICE)
 synthesize_thread.start()
 
-redis_url = 'redis://default:eb7199cbf0f54bf5bb084f7f1d594692@fly-bark-queries.upstash.io:6379'
+redis_url = os.environ.get("redis_url", 'redis://default:eb7199cbf0f54bf5bb084f7f1d594692@fly-bark-queries.upstash.io:6379')
 # Establish connections to Redis for both publishing results and subscribing to incoming tasks
 r = redis.Redis.from_url(redis_url)
 r.setnx('stop_marked_gpu', '')
@@ -23,6 +23,9 @@ r.setnx('stop_marked_gpu', '')
 
 
 def handle_predictions():
+    while synthesize_thread.is_busy():
+        time.sleep(1)
+    r.incr(f'migs_{FLY_MACHINE_ID}')
     while True:
         # Block until a message is received; 'ml_requests' is the list with prediction tasks
         if r.get('stop_marked_gpu').decode('utf-8') == FLY_MACHINE_ID:
@@ -32,6 +35,7 @@ def handle_predictions():
             continue
 
         _, request_data = res
+        r.decr(f'migs_{FLY_MACHINE_ID}')
         # Decode and load the request data (contains 'request_id' and 'features')
         request = json.loads(request_data)
         request_id = request["request_id"]
@@ -69,7 +73,7 @@ def handle_predictions():
         #         }
         #     )
         # )
-
+        r.incr(f'migs_{FLY_MACHINE_ID}')
 
 if __name__ == "__main__":
     print("Starting consumer...")
