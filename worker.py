@@ -84,6 +84,7 @@ def handle_predictions():
             }
         )
         r.incr(f'migs_{FLY_MACHINE_ID}')
+        r.decr('active_requests')
 
 
 if __name__ == "__main__":
