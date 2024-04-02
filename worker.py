@@ -3,7 +3,8 @@ import json
 import os
 import base64
 from datetime import datetime, timezone
-from pymongo import MongoClient
+import logging
+# from pymongo import MongoClient
 import time  # Used for simulating long-running or streaming predictions
 from bark.SynthesizeThread import SynthesizeThread
 from bucket_utils import download_voice
@@ -17,14 +18,15 @@ redis_url = os.environ.get(
     "redis_url",
     'redis://default:eb7199cbf0f54bf5bb084f7f1d594692@fly-bark-queries.upstash.io:6379'
 )
-mongo_uri = os.environ.get(
-    "mongo_uri",
-    "mongodb+srv://ginger:P%40ssw0rd131181@bark-log.1fit2mh.mongodb.net/?retryWrites=true&w=majority&appName=bark-log"
-)
+# mongo_uri = os.environ.get(
+#     "mongo_uri",
+#     "mongodb+srv://ginger:P%40ssw0rd131181@bark-log.1fit2mh.mongodb.net/?retryWrites=true&w=majority&appName=bark-log"
+# )
 # Establish connections to Redis for both publishing results and subscribing to incoming tasks
 r = redis.Redis.from_url(redis_url)
-client = MongoClient(mongo_uri)
-collection = client["bark"]["queries"]
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+# client = MongoClient(mongo_uri)
+# collection = client["bark"]["queries"]
 r.setnx('stop_marked_gpu', '')
 # r = redis.Redis(
 #   host='localhost',  # Changed to localhost
@@ -72,17 +74,23 @@ def handle_predictions():
         finish_time = time.time() - s
         # Signal completion of the streaming predictions
         r.publish(request_id, json.dumps({"complete": True}))
-        collection.insert_one(
-            {
-                "request_time": request_time,
-                "process_start_time": process_start_time,
-                "text": text,
-                "voice": voice,
-                "rate": rate,
-                'first_byte_time': first_byte_time,
-                'finish_time': finish_time
-            }
+
+        # logging
+        logging.info(
+            f"Request Time: {request_time}, Process Start Time: {process_start_time}, Text: {text}, Voice: {voice}, "
+            f"Rate: {rate}, First Byte Generation Time: {first_byte_time}, Process Finish Time: {finish_time}"
         )
+        # collection.insert_one(
+        #     {
+        #         "request_time": request_time,
+        #         "process_start_time": process_start_time,
+        #         "text": text,
+        #         "voice": voice,
+        #         "rate": rate,
+        #         'first_byte_time': first_byte_time,
+        #         'finish_time': finish_time
+        #     }
+        # )
         r.incr(f'migs_{FLY_MACHINE_ID}')
         r.decr('active_requests')
 
