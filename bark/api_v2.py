@@ -1,16 +1,14 @@
-import os
-from typing import Dict, Optional, Union
-import torchaudio
-import soundfile as sf
-import numpy as np
-import time
-from audiostretchy.stretch import AudioStretch
-from .generation_v2 import codec_decode, generate_coarse, generate_fine, generate_text_semantic
 import audioop
-import torch
-from vocos import Vocos
-from .generation_v2 import generate_coarse, generate_fine, generate_text_semantic
+import time
+from typing import Dict, Optional, Union
 
+import numpy as np
+import torch
+import torchaudio
+from audiostretchy.stretch import AudioStretch
+from vocos import Vocos
+
+from .generation_v2 import generate_coarse, generate_fine, generate_text_semantic
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
@@ -33,6 +31,7 @@ def audioop_ulaw_compress(x):
 def audioop_ulaw_expand(x):
     return numpy_audioop_helper(x, np.uint8, audioop.ulaw2lin, 2, np.int16)
 
+
 def get_zero_value_length(wav):
     non_zero_indices = np.nonzero(wav)[0]
     if len(non_zero_indices):
@@ -47,7 +46,7 @@ def stretch_wav(wav, rate):
     audio_stretch = AudioStretch()
     audio_stretch.nchannels = 1
     audio_stretch.sampwidth = 2
-    audio_stretch.framerate = 8000
+    audio_stretch.framerate = 16000
     audio_stretch.nframes = len(wav)
     audio_stretch.in_samples = wav
 
@@ -68,12 +67,13 @@ def stretch_wav(wav, rate):
     last_non_zero_index, _ = get_zero_value_length(target_samples)
     return audio_stretch.samples[:last_non_zero_index + target_silence_length]
 
+
 def text_to_semantic(
-    text: str,
-    history_prompt: Optional[Union[Dict, str]] = None,
-    temp: float = 0.7,
-    silent: bool = False,
-    min_eos_p: float = 0.2
+        text: str,
+        history_prompt: Optional[Union[Dict, str]] = None,
+        temp: float = 0.7,
+        silent: bool = False,
+        min_eos_p: float = 0.2
 ):
     """Generate semantic array from text.
 
@@ -98,25 +98,25 @@ def text_to_semantic(
 
 
 def save_as_prompt(filepath, full_generation):
-    assert(filepath.endswith(".npz"))
-    assert(isinstance(full_generation, dict))
-    assert("semantic_prompt" in full_generation)
-    assert("coarse_prompt" in full_generation)
-    assert("fine_prompt" in full_generation)
+    assert (filepath.endswith(".npz"))
+    assert (isinstance(full_generation, dict))
+    assert ("semantic_prompt" in full_generation)
+    assert ("coarse_prompt" in full_generation)
+    assert ("fine_prompt" in full_generation)
     np.savez(filepath, **full_generation)
 
 
 def generate_audio(
-    text: str,
-    history_prompt: Optional[Union[Dict, str]] = None,
-    text_temp: float = 0.7,
-    waveform_temp: float = 0.7,
-    silent: bool = False,
-    output_full: bool = False,
-    stream=None,
-    initial_index=0,
-    min_eos_p=0.2,
-    rate=1.0
+        text: str,
+        history_prompt: Optional[Union[Dict, str]] = None,
+        text_temp: float = 0.7,
+        waveform_temp: float = 0.7,
+        silent: bool = False,
+        output_full: bool = False,
+        stream=None,
+        initial_index=0,
+        min_eos_p=0.2,
+        rate=1.0
 ):
     """Generate audio array from input text.
 
@@ -147,28 +147,33 @@ def generate_audio(
         # fine_tokens = coarse_tokens
         audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
         features = vocos.codes_to_features(audio_tokens_torch)
-        audio_arr = vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze().cpu().numpy()
+        audio_arr = torchaudio.functional.resample(
+            vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze(),
+            orig_freq=24000,
+            new_freq=16000
+        ).cpu().numpy()
         if last_audio is None:
             start = 0
-            end_point = len(audio_arr) - int(0.2 * 24000)
+            end_point = len(audio_arr) - int(0.2 * 16000)
             last_audio = audio_arr[:end_point]
         else:
             start = len(last_audio)
             audio_arr[:len(last_audio)] = last_audio
-            end_point = len(audio_arr) - int(0.2 * 24000) if not is_last else len(audio_arr)
+            end_point = len(audio_arr) - int(0.2 * 16000) if not is_last else len(audio_arr)
             last_audio = audio_arr[:end_point]
-        audio_mu = np.int16(audio_arr[start:end_point] * 2**15)
+        audio_mu = stretch_wav(np.int16(audio_arr[start:end_point] * 2 ** 15), rate)
         if stream is not None:
             stream.put(audio_mu.tobytes())
         print(f"audio_{index}.raw", time.time())
         index += 1
         return last_audio, index
+
     for semantic_tokens, is_finished in text_to_semantic(
-        text,
-        history_prompt=history_prompt,
-        temp=text_temp,
-        silent=silent,
-        min_eos_p=min_eos_p,
+            text,
+            history_prompt=history_prompt,
+            temp=text_temp,
+            silent=silent,
+            min_eos_p=min_eos_p,
     ):
         coarse_tokens, x_coarse_in, n_step = generate_coarse(
             semantic_tokens,
@@ -182,7 +187,6 @@ def generate_audio(
         )
         last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=is_finished)
     # last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
-        
+
     # print("Total Audio Length: ", len(audio_arr) / 24000)
     return index
-

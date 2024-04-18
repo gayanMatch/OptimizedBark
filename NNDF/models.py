@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 from abc import abstractmethod
-from NNDF.networks import NetworkMetadata
 
 
 class TRTEngineFile:
@@ -31,10 +30,8 @@ class TRTEngineFile:
         return network_definition
 
     def __init__(
-        self,
-        model: str,
-        network_metadata: NetworkMetadata = None,
+            self,
+            model: str,
     ):
-        self.network_metadata = network_metadata
         self.fpath = model
         self.max_trt_workspace = 3072

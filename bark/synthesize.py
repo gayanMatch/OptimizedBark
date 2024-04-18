@@ -1,5 +1,7 @@
 import time
+
 import nltk
+
 from bark.api_v2 import generate_audio
 
 
@@ -31,9 +33,28 @@ def synthesize(text="", stream=None, voice="en_fiery", rate=1.0):
     for sentence in syn_sentences:
         if sentence:
             if word_count(sentence) < 5:
-                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, stream=stream, initial_index=index, rate=rate, min_eos_p=0.1)
+                index = generate_audio(
+                    sentence,
+                    history_prompt=voice,
+                    text_temp=0.7,
+                    waveform_temp=0.5,
+                    silent=True,
+                    stream=stream,
+                    initial_index=index,
+                    rate=rate,
+                    min_eos_p=0.1
+                )
             else:
-                index = generate_audio(sentence, history_prompt=voice, text_temp=0.7, waveform_temp=0.5, silent=True, stream=stream, initial_index=index, rate=rate)
+                index = generate_audio(
+                    sentence,
+                    history_prompt=voice,
+                    text_temp=0.7,
+                    waveform_temp=0.5,
+                    silent=True,
+                    stream=stream,
+                    initial_index=index,
+                    rate=rate
+                )
     if stream is not None:
         stream.finish()
     end_time = time.time()
@@ -43,11 +64,6 @@ def synthesize(text="", stream=None, voice="en_fiery", rate=1.0):
 
 if __name__ == "__main__":
     print("Synthesize Ready")
-    text_prompt = """
-It looks like you opted into one of our ads lookin' for information on how to scale your business using AI. Do you remember that?
-Hello, I'm really excited about optimizing bark with Air AI.
-"""
-    test_clip = "Hello, Thanks for visiting our bebe company. My name is Mark Fiery and I'm the sales assistant. How can I help you?"
     clip = "Hi, this is warm up synthesize."
     while True:
         synthesize(clip)

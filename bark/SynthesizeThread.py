@@ -2,8 +2,10 @@ import time
 import asyncio
 import queue
 import os
-from threading import Thread
+from threading import Thread, Event
+from queue import Queue, Empty
 from bark.synthesize import synthesize
+
 
 class AsyncStream:
     def __init__(self, request_id: str) -> None:
@@ -53,15 +55,10 @@ class SynthesizeThread(Thread):
         return stream
 
     def run(self) -> None:
-        synthesize("Hello, this is warm up synthesize.")
+        synthesize("Hello, this is warm up synthesize.", voice="final_Either_way_weve-23_09_04__17-51-24.mp4")
         self.isWorking = False
         while True:
             stream, kwargs = self.synthesize_queue.get()
-            # header_file = open('bark/assets/header_24000.raw', 'rb')
-            # header_data = header_file.read()
-            # header_file.close()
-            # if stream:
-            #     stream.put(header_data)
             print("Synthesis Started: ", time.time())
             self.isWorking = True
             synthesize(kwargs["text"], stream, voice=kwargs["voice"], rate=kwargs["rate"])

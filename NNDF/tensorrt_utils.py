@@ -16,28 +16,19 @@
 #
 
 import tensorrt as trt
-import torch
-from functools import reduce
-from NNDF.networks import NetworkMetadata
-from NNDF.models import TRTEngineFile
+
 from NNDF.logger import G_LOGGER
-
-
-def allocate_binding_buffer(types_dict, shapes_dict):
-    '''
-    Allocate binding buffers for trt based on provided types and shapes dict
-    '''
-    return {
-        k: torch.zeros(reduce(lambda v, a: v*a, shape), dtype=types_dict[k]).cuda()
-        for k, shape in shapes_dict.items()
-    }
+from NNDF.models import TRTEngineFile
 
 
 # Helper Classes
 class TRTNativeRunner:
-    """TRTNativeRunner avoids the high overheads with Polygraphy runner providing performance comparable to C++ implementation."""
-    def __init__(self, trt_engine_file: TRTEngineFile, network_metadata: NetworkMetadata):
-        self.network_metadata = network_metadata
+    """
+    TRTNativeRunner avoids the high overheads with Polygraphy runner providing performance comparable to
+    C++ implementation.
+    """
+
+    def __init__(self, trt_engine_file: TRTEngineFile):
         self.trt_engine_file = trt_engine_file
         self.trt_logger = trt.Logger()
 
@@ -70,16 +61,19 @@ class TRTNativeRunner:
         # inspired by demo/BERT/inference.py script
         selected_profile_idx = None
         for idx in range(self.trt_engine.num_optimization_profiles):
-            profile_shape = self.trt_engine.get_profile_shape(profile_index=idx, binding=idx * self._num_bindings_per_profile)
+            profile_shape = self.trt_engine.get_profile_shape(profile_index=idx,
+                                                              binding=idx * self._num_bindings_per_profile)
 
             if profile_shape[0][0] <= batch_size and profile_shape[2][0] >= batch_size \
-               and profile_shape[0][1] <=  sequence_length and profile_shape[2][1] >= sequence_length:
+                    and profile_shape[0][1] <= sequence_length and profile_shape[2][1] >= sequence_length:
                 G_LOGGER.debug("Selected profile: {}".format(profile_shape))
                 selected_profile_idx = idx
                 break
 
         if selected_profile_idx == -1:
-            raise RuntimeError("Could not find any profile that matches batch_size={}, sequence_length={}".format(batch_size, sequence_length))
+            raise RuntimeError(
+                "Could not find any profile that matches batch_size={}, sequence_length={}".format(batch_size,
+                                                                                                   sequence_length))
 
         return selected_profile_idx
 

@@ -5,7 +5,7 @@ polygraphy
 transformers
 tensorrt
 onnx
-onnx_graphsurgeon
+onnx-graphsurgeon
 soundfile
 vocos
 scipy
