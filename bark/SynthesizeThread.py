@@ -1,9 +1,9 @@
-import time
 import asyncio
 import queue
-import os
-from threading import Thread, Event
+import time
 from queue import Queue, Empty
+from threading import Thread, Event
+
 from bark.synthesize import synthesize
 
 

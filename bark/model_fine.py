@@ -2,8 +2,8 @@
 Much of this code is adapted from Andrej Karpathy's NanoGPT
 (https://github.com/karpathy/nanoGPT)
 """
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -108,7 +108,7 @@ class FineGPT(GPT):
         device = idx.device
         b, t, codes = idx.size()
         assert (
-            t <= self.config.block_size
+                t <= self.config.block_size
         ), f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
         assert pred_idx > 0, "cannot predict 0th codebook"
         assert codes == self.n_codes_total, (b, t, codes)

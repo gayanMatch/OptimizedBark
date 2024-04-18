@@ -1,11 +1,13 @@
-import redis
-import json
-import os
 import base64
-from datetime import datetime, timezone
+import json
 import logging
+import os
 # from pymongo import MongoClient
 import time  # Used for simulating long-running or streaming predictions
+from datetime import datetime, timezone
+
+import redis
+
 from bark.SynthesizeThread import SynthesizeThread
 from bucket_utils import download_voice
 
@@ -28,6 +30,8 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=lo
 # client = MongoClient(mongo_uri)
 # collection = client["bark"]["queries"]
 r.setnx('stop_marked_gpu', '')
+
+
 # r = redis.Redis(
 #   host='localhost',  # Changed to localhost
 #   port=6379,

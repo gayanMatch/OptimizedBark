@@ -1,7 +1,9 @@
 import os
+
 from google.cloud import storage
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "voice-npz.json"
+
 
 def download_voice(bucket_name, voice, destination_folder):
     # Initialize a storage client
@@ -13,7 +15,7 @@ def download_voice(bucket_name, voice, destination_folder):
 
     if blob.exists():
         destination_file_name = f"{destination_folder}/{blob.name}"
-        blob.download_to_filename(destination_file_name,)
+        blob.download_to_filename(destination_file_name, )
         return True
     else:
         return False

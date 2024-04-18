@@ -1,11 +1,11 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
-import redis
-import uuid
-import json
-import time
 import base64
+import json
+import uuid
+
+import redis
 import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 redis_url = 'redis://default:eb7199cbf0f54bf5bb084f7f1d594692@fly-bark-queries.upstash.io:6379'
@@ -16,6 +16,8 @@ r_sub = redis.Redis.from_url(redis_url)
 #   password=''  # Likely no password if you're just testing locally
 # )
 r_pub = redis.Redis.from_url(redis_url)
+
+
 # r_pub = redis.Redis(
 #   host='localhost',  # Changed to localhost
 #   port=6379,
