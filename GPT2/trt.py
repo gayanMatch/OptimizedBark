@@ -106,10 +106,18 @@ class GPT2TRTDecoder(TRTNativeRunner):
 
     def load_past_key_values(self, past_key_values):
         for i in range(self.num_decoder_layers):
-            cuda.memcpy_htod(self.bindings[self.trt_engine.get_binding_index(f"past_key_values.{i}.decoder.key")],
-                             past_key_values[i][0].contiguous().cpu().numpy())
-            cuda.memcpy_htod(self.bindings[self.trt_engine.get_binding_index(f"past_key_values.{i}.decoder.value")],
-                             past_key_values[i][1].contiguous().cpu().numpy())
+            temp = past_key_values[i][0].contiguous()
+            cuda.memcpy_dtod(
+                self.bindings[self.trt_engine.get_binding_index(f"past_key_values.{i}.decoder.key")],
+                temp.data_ptr(),
+                temp.nbytes
+            )
+            temp = past_key_values[i][1].contiguous()
+            cuda.memcpy_dtod(
+                self.bindings[self.trt_engine.get_binding_index(f"past_key_values.{i}.decoder.value")],
+                temp.data_ptr(),
+                temp.nbytes
+            )
         self.past_decoder_length = past_key_values[0][0].shape[2]
 
     def forward(self, input_ids, *args, **kwargs):

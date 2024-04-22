@@ -14,7 +14,7 @@ from encodec import EncodecModel
 from huggingface_hub import hf_hub_download
 from scipy.special import softmax
 from transformers import BertTokenizer
-
+from vocos import Vocos
 from GPT2.trt import GPT2TRTDecoder
 from NNDF.models import TRTEngineFile
 from .model import GPTConfig, GPT, GPT_COARSE
@@ -41,7 +41,7 @@ global models_devices
 models_devices = {}
 
 CONTEXT_WINDOW_SIZE = 1024
-CHUNK_SIZE = 3
+CHUNK_SIZE = 2
 SEMANTIC_RATE_HZ = 49.9
 SEMANTIC_VOCAB_SIZE = 10_000
 
@@ -67,12 +67,6 @@ SUPPORTED_LANGS = [
     ("Turkish", "tr"),
     ("Chinese", "zh"),
 ]
-
-ALLOWED_PROMPTS = {"announcer"}
-for _, lang in SUPPORTED_LANGS:
-    for prefix in ("", f"v2{os.path.sep}"):
-        for n in range(10):
-            ALLOWED_PROMPTS.add(f"{prefix}{lang}_speaker_{n}")
 
 logger = logging.getLogger(__name__)
 
@@ -273,9 +267,8 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
     return model
 
 
-def _load_codec_model(device):
-    model = EncodecModel.encodec_model_24khz()
-    model.set_target_bandwidth(6.0)
+def _load_vocos_model(device):
+    model = Vocos.from_pretrained("charactr/vocos-encodec-24khz")
     model.eval()
     model.to(device)
     _clear_cuda_cache()
@@ -307,20 +300,20 @@ def load_model(use_gpu=True, use_small=False, force_reload=False, model_type="te
     return models[model_key]
 
 
-def load_codec_model(use_gpu=True, force_reload=False):
+def load_vocos_model(use_gpu=True, force_reload=False):
     global models
     global models_devices
     device = _grab_best_device(use_gpu=use_gpu)
     if device == "mps":
         # encodec doesn't support mps
         device = "cpu"
-    model_key = "codec"
+    model_key = "vocos"
     if OFFLOAD_CPU:
         models_devices[model_key] = device
         device = "cpu"
     if model_key not in models or force_reload:
         clean_models(model_key=model_key)
-        model = _load_codec_model(device)
+        model = _load_vocos_model(device)
         models[model_key] = model
     models[model_key].to(device)
     return models[model_key]
@@ -353,7 +346,7 @@ def preload_models(
     _ = load_model(
         model_type="fine", use_gpu=fine_use_gpu, use_small=fine_use_small, force_reload=force_reload
     )
-    _ = load_codec_model(use_gpu=codec_use_gpu, force_reload=force_reload)
+    _ = load_vocos_model(use_gpu=codec_use_gpu, force_reload=force_reload)
 
 
 ####
@@ -385,8 +378,6 @@ def _load_history_prompt(history_prompt_input):
     elif isinstance(history_prompt_input, str):
         # make sure this works on non-ubuntu
         history_prompt_input = os.path.join(*history_prompt_input.split("/"))
-        # if history_prompt_input not in ALLOWED_PROMPTS:
-        #     raise ValueError("history prompt not found")
         history_prompt = np.load(
             os.path.join(CUR_PATH, "assets", "prompts", f"{history_prompt_input}.npz")
         )
@@ -849,24 +840,21 @@ def generate_fine(
     return gen_fine_arr
 
 
-def codec_decode(fine_tokens):
+def vocos_decode(fine_tokens):
     """Turn quantized audio codes into audio array using encodec."""
     # load models if not yet exist
     global models
     global models_devices
-    if "codec" not in models:
+    if "vocos" not in models:
         preload_models()
-    model = models["codec"]
+    model = models["vocos"]
     if OFFLOAD_CPU:
-        model.to(models_devices["codec"])
+        model.to(models_devices["vocos"])
     device = next(model.parameters()).device
-    arr = torch.from_numpy(fine_tokens)[None]
-    arr = arr.to(device)
-    arr = arr.transpose(0, 1)
-    emb = model.quantizer.decode(arr)
-    out = model.decoder(emb)
-    audio_arr = out.detach().cpu().numpy().squeeze()
-    del arr, emb, out
+    audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
+    features = model.codes_to_features(audio_tokens_torch)
+    arr = model.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze()
+    del features
     if OFFLOAD_CPU:
         model.to("cpu")
-    return audio_arr
+    return arr

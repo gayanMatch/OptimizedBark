@@ -24,7 +24,13 @@ def synthesize(text="", stream=None, voice="en_fiery", rate=1.0):
             last_sentence = last_sentence + (' ' if last_sentence else '') + sentence
     if last_sentence:
         syn_sentences.append(last_sentence)
-
+    file = None
+    if stream is None:
+        file = open("synthesized.wav", "wb")
+        header_16000_file = open('bark/assets/header_16000.raw', 'rb')
+        header_16000 = header_16000_file.read()
+        header_16000_file.close()
+        file.write(header_16000)
     for sentence in syn_sentences:
         if sentence:
             if word_count(sentence) < 5:
@@ -35,6 +41,7 @@ def synthesize(text="", stream=None, voice="en_fiery", rate=1.0):
                     waveform_temp=0.5,
                     silent=True,
                     stream=stream,
+                    file=file,
                     initial_index=index,
                     rate=rate,
                     min_eos_p=0.1
@@ -47,11 +54,14 @@ def synthesize(text="", stream=None, voice="en_fiery", rate=1.0):
                     waveform_temp=0.5,
                     silent=True,
                     stream=stream,
+                    file=file,
                     initial_index=index,
                     rate=rate
                 )
     if stream is not None:
         stream.finish()
+    elif file is not None:
+        file.close()
     end_time = time.time()
     duration = end_time - start_time
     print(f"Time for syntesize: {duration}")
