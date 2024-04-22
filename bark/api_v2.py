@@ -1,17 +1,13 @@
 import audioop
 import time
 from typing import Dict, Optional, Union
-
 import numpy as np
 import torch
 import torchaudio
 from audiostretchy.stretch import AudioStretch
-from vocos import Vocos
-
-from .generation_v2 import generate_coarse, generate_fine, generate_text_semantic
+from .generation_v2 import generate_coarse, generate_fine, generate_text_semantic, vocos_decode
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-vocos = Vocos.from_pretrained("charactr/vocos-encodec-24khz").to(device)
 
 
 def numpy_audioop_helper(x, xdtype, func, width, ydtype):
@@ -97,15 +93,6 @@ def text_to_semantic(
     return x_semantic
 
 
-def save_as_prompt(filepath, full_generation):
-    assert (filepath.endswith(".npz"))
-    assert (isinstance(full_generation, dict))
-    assert ("semantic_prompt" in full_generation)
-    assert ("coarse_prompt" in full_generation)
-    assert ("fine_prompt" in full_generation)
-    np.savez(filepath, **full_generation)
-
-
 def generate_audio(
         text: str,
         history_prompt: Optional[Union[Dict, str]] = None,
@@ -145,10 +132,9 @@ def generate_audio(
             temp=0.5,
         )
         # fine_tokens = coarse_tokens
-        audio_tokens_torch = torch.from_numpy(fine_tokens).to(device)
-        features = vocos.codes_to_features(audio_tokens_torch)
+        arr = vocos_decode(fine_tokens)
         audio_arr = torchaudio.functional.resample(
-            vocos.decode(features, bandwidth_id=torch.tensor([2], device=device)).squeeze(),
+            arr,
             orig_freq=24000,
             new_freq=16000
         ).cpu().numpy()
@@ -186,7 +172,4 @@ def generate_audio(
             initial_n_step=n_step
         )
         last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=is_finished)
-    # last_audio, index = gen_audio_from_coarse(last_audio, index, is_last=True)
-
-    # print("Total Audio Length: ", len(audio_arr) / 24000)
     return index

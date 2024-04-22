@@ -17,18 +17,13 @@ def synthesize(text="", stream=None, voice="en_fiery", rate=1.0):
     last_sentence = ''
     syn_sentences = []
     for sentence in sentences:
-        if word_count(last_sentence + ' ' + sentence) > 40 and word_count(last_sentence) > 20:
+        if word_count(last_sentence + ' ' + sentence) > 30:
             syn_sentences.append(last_sentence)
             last_sentence = sentence
         else:
             last_sentence = last_sentence + (' ' if last_sentence else '') + sentence
-    if word_count(last_sentence) > 20:
+    if last_sentence:
         syn_sentences.append(last_sentence)
-    else:
-        if len(syn_sentences) > 0:
-            syn_sentences[-1] = syn_sentences[-1] + last_sentence
-        else:
-            syn_sentences.append(last_sentence)
 
     for sentence in syn_sentences:
         if sentence:
