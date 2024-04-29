@@ -41,7 +41,7 @@ global models_devices
 models_devices = {}
 
 CONTEXT_WINDOW_SIZE = 1024
-CHUNK_SIZE = 2
+CHUNK_SIZE = 2  # number of chunks for streaming smaller values gives faster response time
 SEMANTIC_RATE_HZ = 49.9
 SEMANTIC_VOCAB_SIZE = 10_000
 
@@ -110,7 +110,7 @@ REMOTE_MODEL_PATHS = {
         "file_name": "fine_2.pt",
     },
 }
-LOCAL_MODEL_PATHS = {
+LOCAL_MODEL_PATHS = {  # model paths in project repo
     "text_small": "./models/bark/pytorch/model.pt",
     "coarse_small": "./models/bark_coarse/pytorch/model.pt",
     "fine_small": "./models/bark_fine/pytorch/model.pt",
@@ -127,6 +127,11 @@ if not hasattr(torch.nn.functional, 'scaled_dot_product_attention') and torch.cu
 
 
 def _grab_best_device(use_gpu=True):
+    """
+    Grabs the best available GPU device
+    :param use_gpu: whether to use gpu or not
+    :return: the best available GPU device string
+    """
     if torch.cuda.device_count() > 0 and use_gpu:
         device = "cuda"
     elif torch.backends.mps.is_available() and use_gpu and GLOBAL_ENABLE_MPS:
@@ -137,6 +142,12 @@ def _grab_best_device(use_gpu=True):
 
 
 def _get_ckpt_path(model_type, use_small=False):
+    """
+    Returns the path to the checkpoint file
+    :param model_type: type of model (text, coarse, fine)
+    :param use_small: whether to use small models or not
+    :return: path to the checkpoint file
+    """
     key = model_type
     if use_small or USE_SMALL_MODELS:
         key += "_small"
@@ -144,6 +155,12 @@ def _get_ckpt_path(model_type, use_small=False):
 
 
 def _download(from_hf_path, file_name):
+    """
+    Downloads the file from the given URL
+    :param from_hf_path: path to the repo
+    :param file_name: name of the file
+    :return: None
+    """
     os.makedirs(CACHE_DIR, exist_ok=True)
     hf_hub_download(repo_id=from_hf_path, filename=file_name, local_dir=CACHE_DIR)
 
@@ -174,12 +191,18 @@ def _inference_mode():
 
 
 def _clear_cuda_cache():
+    """
+    Clears the CUDA cache
+    """
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
 
 
 def clean_models(model_key=None):
+    """
+    Cleans the models cache
+    """
     global models
     model_keys = [model_key] if model_key is not None else list(models.keys())
     for k in model_keys:
@@ -190,6 +213,14 @@ def clean_models(model_key=None):
 
 
 def _load_model(ckpt_path, device, use_small=False, model_type="text"):
+    """
+    Loads the model from the given path
+    :param ckpt_path: path to the checkpoint file
+    :param device: device to load the model
+    :param use_small: whether to use small models or not
+    :param model_type: type of model (text, coarse, fine)
+    :return: the loaded model dict
+    """
     if model_type == "text":
         ConfigClass = GPTConfig
         ModelClass = GPT
@@ -268,6 +299,11 @@ def _load_model(ckpt_path, device, use_small=False, model_type="text"):
 
 
 def _load_vocos_model(device):
+    """
+    load vocos model
+    :param device: device to load model
+    :return: vocos model
+    """
     model = Vocos.from_pretrained("charactr/vocos-encodec-24khz")
     model.eval()
     model.to(device)
@@ -276,6 +312,9 @@ def _load_vocos_model(device):
 
 
 def load_model(use_gpu=True, use_small=False, force_reload=False, model_type="text"):
+    """
+    High level model loading function
+    """
     _load_model_f = funcy.partial(_load_model, model_type=model_type, use_small=use_small)
     if model_type not in ("text", "coarse", "fine"):
         raise NotImplementedError()
@@ -301,6 +340,9 @@ def load_model(use_gpu=True, use_small=False, force_reload=False, model_type="te
 
 
 def load_vocos_model(use_gpu=True, force_reload=False):
+    """
+    High level vocos model loading function
+    """
     global models
     global models_devices
     device = _grab_best_device(use_gpu=use_gpu)
@@ -403,7 +445,24 @@ def generate_text_semantic(
         allow_early_stop=True,
         use_kv_caching=False,
 ):
-    """Generate semantic tokens from text."""
+    """
+    Generate semantic tokens from text in streaming.
+
+    :param text: text to be converted to semantic tokens
+    :param history_prompt: path to voice npz
+    :param temp: temperature for semantic token generation
+    :param top_k: select candidate tokens in top k for next semantic token generation
+    :param top_p: select candidate tokens in p percent for next semantic token generation
+    :param silent: disable progress bar
+    :param min_eos_p: end of sentence token probability
+            stop generating next semantic token if eos probability exceeds this value
+    :param max_gen_duration_s: maximum length of generated next semantic token
+    :param allow_early_stop: stop generating if next token is eos
+    :param use_kv_caching: enable key value caching
+    :return: generator that yields (chunks of semantic tokens, is_finished)
+            first chunk is 27 + 20 * CHUNK_SIZE
+            next chunks are appended 20 * CHUNK_SIZE
+    """
     assert isinstance(text, str)
     text = _normalize_whitespace(text)
     assert len(text.strip()) > 0
@@ -475,6 +534,7 @@ def generate_text_semantic(
                 # logits, kv_cache = model(x_input, merge_context=True, use_cache=use_kv_caching, past_kv=kv_cache)
             else:
                 x_input = x
+                # key, values cache generation for context running
                 logits, kv_cache = model(x_input, merge_context=True, use_cache=use_kv_caching, past_kv=kv_cache)
                 trt_model.load_past_key_values(kv_cache)
                 trt_model.context_mode = False
@@ -510,6 +570,7 @@ def generate_text_semantic(
                 pbar.update(n - pbar_state)
                 break
             x = torch.cat((x, item_next[None]), dim=1)
+            # return results by 20 * CHUNK_SIZE because coarse generation consumes 20 tokens each time
             if n % (CHUNK_SIZE * 20) == 27 and n > 20 * CHUNK_SIZE:
                 yield x.detach().cpu().numpy().squeeze()[256 + 256 + 1:], False
             tot_generated_duration_s += 1 / SEMANTIC_RATE_HZ
@@ -565,7 +626,30 @@ def generate_coarse(
         initial_n_step=0,
         initial_x_coarse_in=None
 ):
-    """Generate coarse audio codes from semantic tokens."""
+    """
+    Generate coarse audio codes from semantic tokens.
+    :param x_semantic: semantic tokens
+    :param is_finished: is semantic token generation finished
+    :param history_prompt: path to voice npz file
+    :param temp: temperature for coarse generation
+    :param top_k: select candidate tokens in top k for next coarse token generation
+    :param top_p: select candidate tokens in p percent for next semantic token generation
+    :silent: disable progress bar
+    :param max_coarse_history: maximum number of coarse tokens from history is used for generation
+    :param sliding_window_len: window length for coarse generation
+    :param use_kv_caching: enable kv caching
+    :param initial_n_step: initial number of steps for coarse generation
+            this parameter is to resume coarse generation from previous step in streaming
+    :param initial_x_coarse_in: initial coarse tokens from previous step in streaming
+            this parameter should be set if initial_n_step is not 0
+
+    :return gen_coarse_audio_arr: generated coarse tokens
+            these tokens will be used for fine token generation
+    :return x_coarse_in: coarse tokens from generating process
+            these tokens are going to be used to resume coarse token generation
+    :return n_step: number of steps in coarse generation
+            this is going to be used to resume coarse token generation
+    """
     assert (
             isinstance(x_semantic, np.ndarray)
             and len(x_semantic.shape) == 1
@@ -626,7 +710,9 @@ def generate_coarse(
     if OFFLOAD_CPU:
         model.to(models_devices["coarse"])
     device = next(model.parameters()).device
-    # start loop
+    # n_step initialization
+    # if semantic generation is finished, set the ending step for coarse generation
+    # else, set it infinity
     if is_finished:
         n_steps = int(
             round(
@@ -690,7 +776,7 @@ def generate_coarse(
                                   0,
                                   0,
                                   logit_start_idx - SEMANTIC_VOCAB_SIZE:logit_end_idx - SEMANTIC_VOCAB_SIZE
-                                  ]
+                ]
                 if top_p is not None:
                     # faster to convert to numpy
                     original_device = relevant_logits.device
@@ -737,7 +823,15 @@ def generate_fine(
         temp=0.5,
         silent=True,
 ):
-    """Generate full audio codes from coarse audio codes."""
+    """
+    Generate full audio codes from coarse audio codes.
+
+    :param x_coarse_gen: coarse tokens
+    :param history_prompt: file path to voice npz file
+    :param temp: temperature for fine token generation
+    :param silent: disable progress bar
+    :return: fine tokens
+    """
     assert (
             isinstance(x_coarse_gen, np.ndarray)
             and len(x_coarse_gen.shape) == 2
@@ -841,7 +935,9 @@ def generate_fine(
 
 
 def vocos_decode(fine_tokens):
-    """Turn quantized audio codes into audio array using encodec."""
+    """
+    Turn quantized audio codes into audio array using vocos.
+    """
     # load models if not yet exist
     global models
     global models_devices

@@ -78,6 +78,7 @@ def text_to_semantic(
         history_prompt: history choice for audio cloning
         temp: generation temperature (1.0 more diverse, 0.0 more conservative)
         silent: disable progress bar
+        min_eos_p: end of sentence probability
 
     Returns:
         numpy semantic array to be fed into `semantic_to_waveform`
